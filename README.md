@@ -20,3 +20,8 @@ Démonstration
 Un exemple d'exploitation de ce modèle d'application sur le thème des équipements publics de la Métropole Nice Côte d'Azur : http://demo.arcopole.fr/InformationsAProximite/.
 Merci à cette dernière pour son accord pour l‘utilisation des données. Dans la démonstration, les données sont stockées sur ArcGIS Online et partagées sans restriction. Dans le cadre d’une mise en œuvre dans votre organisation, toutes les possibilités d’ArcGIS sont possibles (données accessibles au grand public, réservées à votre organisation, à certaines personnes, …)
 
+Alternative sans ArcGIS
+-------
+
+Un MVP gratuit pour Camayenne (Leaflet + Supabase + openrouteservice) est disponible dans `camayenne_open_mvp/README.md`.
+

@@ -36,6 +36,99 @@ define({
          "previous" : "Previous",
          "next" : "Next",
          "directions" : "Directions"
+      },
+      "camayenne": {
+         "title": "Camayenne Map",
+         "tabs": {
+            "search": "Search",
+            "add": "Add place",
+            "report": "Report"
+         },
+         "sections": {
+            "searchTitle": "Search a place",
+            "addTitle": "Add a place",
+            "reportTitle": "Report an issue"
+         },
+         "labels": {
+            "name": "Name",
+            "category": "Category",
+            "address": "Address",
+            "phone": "Phone",
+            "description": "Description",
+            "type": "Type",
+            "status": "Status",
+            "title": "Title",
+            "filterType": "Filter (type)",
+            "filterStatus": "Filter (status)"
+         },
+         "placeholders": {
+            "searchName": "Place name",
+            "name": "Place name",
+            "address": "Address or landmark",
+            "phone": "+224 ...",
+            "description": "Useful details",
+            "reportTitle": "e.g. pothole",
+            "reportDescription": "Report details"
+         },
+         "buttons": {
+            "search": "Search",
+            "clear": "Clear",
+            "pick": "Pick on map",
+            "useCenter": "Use center",
+            "submit": "Submit",
+            "reset": "Reset"
+         },
+         "toggles": {
+            "showPoi": "Show POI on map",
+            "showReports": "Show reports on map"
+         },
+         "misc": {
+            "pointUnset": "Point: not set",
+            "pointPrefix": "Point:",
+            "panelCollapse": "Collapse",
+            "panelExpand": "Expand",
+            "poiLayerMissing": "POI layer not configured.",
+            "reportLayerMissing": "Reports layer not configured.",
+            "pickOnMap": "Tap on the map to place the point.",
+            "pointSetCenter": "Point set to map center.",
+            "poiAdded": "Place added. Thanks.",
+            "reportSent": "Report sent. Thanks.",
+            "sendError": "Error while sending.",
+            "searchError": "Search error.",
+            "noResults": "No results."
+         },
+         "options": {
+            "all": "All"
+         },
+         "categories": {
+            "PHARMACIE": "Pharmacy",
+            "HOPITAL": "Hospital",
+            "ECOLE": "School",
+            "UNIVERSITE": "University",
+            "MOSQUEE": "Mosque",
+            "MARCHE": "Market",
+            "RESTAURANT": "Restaurant",
+            "STATION_SERVICE": "Gas station",
+            "BANQUE_ATM": "Bank / ATM",
+            "HOTEL": "Hotel",
+            "ADMINISTRATION": "Administration",
+            "TRANSPORT": "Transport",
+            "LOISIRS": "Leisure",
+            "AUTRES": "Other"
+         },
+         "reportTypes": {
+            "VOIRIE": "Road",
+            "ECLAIRAGE": "Public lighting",
+            "DECHETS": "Waste / Cleanliness",
+            "INONDATION": "Flooding / Drainage",
+            "SECURITE": "Safety",
+            "AUTRE": "Other"
+         },
+         "reportStatuses": {
+            "NOUVEAU": "New",
+            "EN_COURS": "In progress",
+            "RESOLU": "Resolved"
+         }
       }
    }),
    "ar": 1,

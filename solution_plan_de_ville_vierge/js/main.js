@@ -31,13 +31,19 @@ define([
     "esri/dijit/LocateButton",
     "esri/dijit/Popup",
     "esri/lang",
+    "esri/geometry/Point",
+    "esri/SpatialReference",
+    "esri/geometry/webMercatorUtils",
     "esri/symbols/SimpleMarkerSymbol",
+    "esri/symbols/SimpleLineSymbol",
     "esri/urlUtils",
 	"esri/dijit/Search",
 	"esri/tasks/locator",
     "esri/layers/FeatureLayer",
     "esri/InfoTemplate",
+    "esri/renderers/UniqueValueRenderer",
     "application/Menu",
+    "application/CamayennePanels",
     "dijit/registry",
     "dojo/dom-style",
     "dojo/_base/event",
@@ -59,13 +65,19 @@ define([
     LocateButton,
     Popup,
     esriLang,
+    Point,
+    SpatialReference,
+    webMercatorUtils,
     SimpleMarkerSymbol,
+    SimpleLineSymbol,
     urlUtils,
     Search,
     Locator,
     FeatureLayer,
     InfoTemplate,
+    UniqueValueRenderer,
     Menu,
+    CamayennePanels,
     registry,
     domStyle,
     dojoEvent,
@@ -90,6 +102,12 @@ define([
       geocoder : null,
 	  
 	  menuPerso : null,
+      
+      camayennePanels: null,
+      
+      poiLayer: null,
+      
+      reportsLayer: null,
 
       // Startup
       startup : function(config) {
@@ -145,6 +163,7 @@ define([
             } else {
                node.innerHTML = "Unable to create map: " + error.message;
             }
+            domStyle.set(node, "backgroundImage", "url('images/error.png')");
          }
       },
 
@@ -184,7 +203,8 @@ define([
 
             this.map = response.map;
             this.initExt = this.map.extent;
-            this.config.opLayers = response.itemInfo.itemData.operationalLayers;
+            this.config.opLayers = response.itemInfo.itemData.operationalLayers || [];
+            this._initCamayenneLayers();
             
             this._createMapUI();
             // make sure map is loaded
@@ -264,6 +284,7 @@ define([
           }
          // update theme
          this._updateTheme();
+         this._applyDefaultCenter();
          
          // set default location
          if (this.config.defaultToCenter)
@@ -271,7 +292,9 @@ define([
          on(this.map, "extent-change", lang.hitch(this, this._mapClickHandler));
          
          
-         this._menuItemClicked(this.ui.pages[1]);
+         if (this.ui.pages.length > 1) {
+            this._menuItemClicked(this.ui.pages[1]);
+         }
       },
       
 	  _onResize: function(evt){
@@ -310,6 +333,9 @@ define([
       _menuItemClicked: function(evt){
           var page;
           var geocoder = registry.byId("panelGeocoder");
+          if (!geocoder) {
+             return;
+          }
           if(evt.target){
              page = registry.byId(evt.target.parentElement.id).page;
              this.ui._showPage(page.id);
@@ -335,7 +361,7 @@ define([
             minCharacters: 3,
             enableHighlight: true
          });
-         if(searchConfig.layers && page.id && searchConfig.layers.length>(page.id-1)){
+         if(searchConfig.layers && page && page.id && searchConfig.layers.length>(page.id-1) && page.layer){
              sources.push({
                 featureLayer: new FeatureLayer(page.layer.url),
                 outFields: ["*"],
@@ -393,9 +419,20 @@ define([
             dom.byId("panelText").innerHTML = this.config.title;
          if (this.config.logo !== "")
             dom.byId("logo").src = this.config.logo;
+         if (this.config.i18n && this.config.i18n.camayenne && this.config.i18n.camayenne.title) {
+            document.title = this.config.i18n.camayenne.title;
+            dom.byId("panelText").innerHTML = this.config.i18n.camayenne.title;
+         }
          this.ui = new UI(this.config);
          this.ui.map = this.map;
          this.ui.startup();
+         this.camayennePanels = new CamayennePanels({
+            map: this.map,
+            config: this.config,
+            poiLayer: this.poiLayer,
+            reportsLayer: this.reportsLayer
+         });
+         this.camayennePanels.startup();
       },
 
       // Update Theme
@@ -403,12 +440,129 @@ define([
          query(".bg").style("backgroundColor", this.config.color.toString());
          query(".esriPopup .titlePane").style("backgroundColor", this.config.color.toString());
       },
+      
+      _applyDefaultCenter: function() {
+         var cam = this.config.camayenne || {};
+         if (!cam.defaultCenter || cam.defaultCenter.length !== 2) {
+            return;
+         }
+         var zoom = cam.defaultZoom || this.config.defaultZoomLevel || 15;
+         var pt = new Point(cam.defaultCenter[0], cam.defaultCenter[1], new SpatialReference({ wkid: 4326 }));
+         if (webMercatorUtils.canProject(pt)) {
+            pt = webMercatorUtils.geographicToWebMercator(pt);
+         }
+         this.map.centerAndZoom(pt, zoom);
+      },
 
       // set default location
       _setDefaultLocation : function() {
          var pt = this.map.extent.getCenter();
          this.ui.setLocation(pt);
          this.map.resize();
+      },
+      
+      _initCamayenneLayers: function() {
+         var cam = this.config.camayenne || {};
+         var poiUrl = cam.poiLayerUrl || "";
+         var reportsUrl = cam.reportsLayerUrl || "";
+         var useCustom = (poiUrl && poiUrl !== "__TO_REPLACE__") || (reportsUrl && reportsUrl !== "__TO_REPLACE__");
+         
+         if (useCustom) {
+            this.config.opLayers = [];
+         }
+         
+         if (poiUrl && poiUrl !== "__TO_REPLACE__") {
+            var poiFields = (cam.fields && cam.fields.poi) ? cam.fields.poi : {};
+            var poiOutFields = this._getFieldList(poiFields);
+            var poiLayer = new FeatureLayer(poiUrl, {
+               id: "cam_poi",
+               outFields: poiOutFields.length ? poiOutFields : ["*"],
+               mode: FeatureLayer.MODE_ONDEMAND,
+               visible: !cam.lightMode
+            });
+            poiLayer.setInfoTemplate(this._createPoiTemplate(poiFields));
+            this.map.addLayer(poiLayer);
+            this.poiLayer = poiLayer;
+            this.config.opLayers.unshift({
+               id: "cam_poi",
+               title: cam.poiLayerTitle || "Lieux",
+               layerObject: poiLayer
+            });
+         }
+         
+         if (reportsUrl && reportsUrl !== "__TO_REPLACE__") {
+            var reportFields = (cam.fields && cam.fields.reports) ? cam.fields.reports : {};
+            var reportOutFields = this._getFieldList(reportFields);
+            var reportsLayer = new FeatureLayer(reportsUrl, {
+               id: "cam_reports",
+               outFields: reportOutFields.length ? reportOutFields : ["*"],
+               mode: FeatureLayer.MODE_ONDEMAND,
+               visible: !cam.lightMode
+            });
+            reportsLayer.setInfoTemplate(this._createReportsTemplate(reportFields));
+            this._applyReportsRenderer(reportsLayer, reportFields);
+            this.map.addLayer(reportsLayer);
+            this.reportsLayer = reportsLayer;
+            this.config.opLayers.unshift({
+               id: "cam_reports",
+               title: cam.reportsLayerTitle || "Signalements",
+               layerObject: reportsLayer
+            });
+         }
+      },
+      
+      _getFieldList: function(fieldsObj) {
+         var fields = [];
+         for (var key in fieldsObj) {
+            if (fieldsObj.hasOwnProperty(key) && fieldsObj[key]) {
+               if (fields.indexOf(fieldsObj[key]) === -1) {
+                  fields.push(fieldsObj[key]);
+               }
+            }
+         }
+         return fields;
+      },
+      
+      _createPoiTemplate: function(fields) {
+         var nameField = fields.name || "name";
+         var categoryField = fields.category || "category";
+         var addressField = fields.address || "address";
+         var phoneField = fields.phone || "phone";
+         var descField = fields.description || "description";
+         var title = "${" + nameField + "}";
+         var content = "<div><strong>${" + nameField + "}</strong></div>" +
+            "<div>Catégorie: ${" + categoryField + "}</div>" +
+            "<div>Adresse: ${" + addressField + "}</div>" +
+            "<div>Téléphone: ${" + phoneField + "}</div>" +
+            "<div>${" + descField + "}</div>";
+         return new InfoTemplate(title, content);
+      },
+      
+      _createReportsTemplate: function(fields) {
+         var titleField = fields.title || "title";
+         var typeField = fields.type || "type";
+         var statusField = fields.status || "status";
+         var descField = fields.description || "description";
+         var title = "${" + titleField + "}";
+         var content = "<div><strong>${" + titleField + "}</strong></div>" +
+            "<div>Type: ${" + typeField + "}</div>" +
+            "<div>Statut: ${" + statusField + "}</div>" +
+            "<div>${" + descField + "}</div>";
+         return new InfoTemplate(title, content);
+      },
+      
+      _applyReportsRenderer: function(layer, fields) {
+         if (!layer) {
+            return;
+         }
+         var statusField = fields.status || "status";
+         var outline = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, new Color([255,255,255,1]), 1);
+         var defaultSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_DIAMOND, 16, outline, new Color([255, 140, 0, 0.8]));
+         var renderer = new UniqueValueRenderer(defaultSymbol, statusField);
+         renderer.addValue("NOUVEAU", new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_DIAMOND, 16, outline, new Color([220, 53, 69, 0.85])));
+         renderer.addValue("EN_COURS", new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_DIAMOND, 16, outline, new Color([255, 193, 7, 0.85])));
+         renderer.addValue("RESOLU", new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_DIAMOND, 16, outline, new Color([40, 167, 69, 0.85])));
+         layer.setRenderer(renderer);
       }
       
    });

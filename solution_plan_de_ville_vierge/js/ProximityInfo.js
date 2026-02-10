@@ -90,8 +90,15 @@ define([
          var query = new Query();
          query.outFields = ["*"];
          query.returnGeometry = true;
-         if (this.pageObj.defExp)
-            query.where = this.pageObj.defExp;
+         var defExp = this.pageObj.defExp;
+         if (layer.getDefinitionExpression) {
+            defExp = layer.getDefinitionExpression();
+         } else if (layer.definitionExpression) {
+            defExp = layer.definitionExpression;
+         }
+         if (defExp) {
+            query.where = defExp;
+         }
          query.geometry = Polygon.fromExtent(newExtent);
          query.spatialRelationship = Query.SPATIAL_REL_INTERSECTS;
          queryTask.execute(query, lang.hitch(this, this._resultsHandler), lang.hitch(this, this._errorHandler));

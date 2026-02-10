@@ -46,7 +46,7 @@ define({
     "color": "#80ab00",
     "colors": ["#0071ab", "#c263d4", "#b18d75", "#1951ec", "#19bf2b", "#ff891f", "#24d9b8", "#558663", "#878f9f", "#f34749", "#f607c0", "#33b49d", "#eccd00", "#097096"],
     "logo" : "images/logo.png",
-    "title": "Équipements à proximité",
+    "title": "Camayenne Map",
     
     // **************************** //
     
@@ -74,8 +74,70 @@ define({
     "directionsURL": null,
     "distanceUnits": "kilometers", // options: miles or kilometers
     "defaultDistance": 3,
-    "defaultZoomLevel": 17,
+    "defaultZoomLevel": 15,
     "defaultToCenter": true,
+    // **************************** //
+    
+    // **************************** //
+    // ** CAMAYENNE CONFIG        ** //
+    "camayenne": {
+        "poiLayerUrl": "__TO_REPLACE__",
+        "reportsLayerUrl": "__TO_REPLACE__",
+        "routesLayerUrl": "",
+        "poiLayerTitle": "Lieux",
+        "reportsLayerTitle": "Signalements",
+        "defaultCenter": null,
+        "defaultZoom": 15,
+        "lightMode": true,
+        "lazyLayers": true,
+        "poiCategories": [
+            { "value": "PHARMACIE", "label": "Pharmacie", "symbol": "SANTE.png" },
+            { "value": "HOPITAL", "label": "Hôpital", "symbol": "HOPITAL.png" },
+            { "value": "ECOLE", "label": "École", "symbol": "EDUCATION.png" },
+            { "value": "UNIVERSITE", "label": "Université", "symbol": "UNIVERSITE.png" },
+            { "value": "MOSQUEE", "label": "Mosquée", "symbol": "PATRIMOINE.png" },
+            { "value": "MARCHE", "label": "Marché", "symbol": "DIVERS.png" },
+            { "value": "RESTAURANT", "label": "Restaurant", "symbol": "TOURISME.png" },
+            { "value": "STATION_SERVICE", "label": "Station-service", "symbol": "TRANSPORT.png" },
+            { "value": "BANQUE_ATM", "label": "Banque / ATM", "symbol": "SERVICE PUBLIC.png" },
+            { "value": "HOTEL", "label": "Hôtel", "symbol": "OFFICE DE TOURISME.png" },
+            { "value": "ADMINISTRATION", "label": "Administration", "symbol": "ADMINISTRATION.png" },
+            { "value": "TRANSPORT", "label": "Transport", "symbol": "TRANSPORT.png" },
+            { "value": "LOISIRS", "label": "Loisirs", "symbol": "SPORT ET LOISIR.png" },
+            { "value": "AUTRES", "label": "Autres", "symbol": "DIVERS.png" }
+        ],
+        "reportTypes": [
+            { "value": "VOIRIE", "label": "Voirie" },
+            { "value": "ECLAIRAGE", "label": "Éclairage public" },
+            { "value": "DECHETS", "label": "Déchets / Propreté" },
+            { "value": "INONDATION", "label": "Inondation / Drainage" },
+            { "value": "SECURITE", "label": "Sécurité" },
+            { "value": "AUTRE", "label": "Autre" }
+        ],
+        "reportStatuses": [
+            { "value": "NOUVEAU", "label": "Nouveau" },
+            { "value": "EN_COURS", "label": "En cours" },
+            { "value": "RESOLU", "label": "Résolu" }
+        ],
+        "fields": {
+            "poi": {
+                "name": "name",
+                "category": "category",
+                "address": "address",
+                "phone": "phone",
+                "description": "description",
+                "status": "status",
+                "createdAt": "created_at"
+            },
+            "reports": {
+                "title": "title",
+                "type": "type",
+                "status": "status",
+                "description": "description",
+                "createdAt": "created_at"
+            }
+        }
+    },
     // **************************** //
     
     // **************************** //

@@ -17,6 +17,7 @@
         	<link rel="stylesheet" href="//js.arcgis.com/3.13/esri/css/esri.css">
 
 		<!-- Load any application specific styles -->
+		<link rel="icon" href="images/logo.png">
 		<link rel="stylesheet" href="css/main.css">
 	</head>
 	<body class="claro app-loading">
@@ -51,6 +52,81 @@
 					<div id="panelGeocoder"></div>
 				</div>
 				<div id="btnLocate"></div>
+			</div>
+		</div>
+
+		<!-- Camayenne Panels -->
+		<div id="camayennePanel" class="cam-panel rounded shadow">
+			<div class="cam-panel-tabs">
+				<button class="cam-tab-button is-active" data-tab="search" type="button">Rechercher</button>
+				<button class="cam-tab-button" data-tab="add" type="button">Ajouter</button>
+				<button class="cam-tab-button" data-tab="report" type="button">Signaler</button>
+			</div>
+			<button id="camPanelToggle" class="cam-panel-toggle" type="button" title="Réduire">–</button>
+			<div class="cam-panel-body">
+				<div id="cam-tab-search" class="cam-tab is-active">
+					<div class="cam-title">Rechercher un lieu</div>
+					<label class="cam-label" for="poiSearchName">Nom</label>
+					<input class="cam-input" id="poiSearchName" type="text" placeholder="Nom du lieu">
+					<label class="cam-label" for="poiSearchCategory">Catégorie</label>
+					<select class="cam-input" id="poiSearchCategory"></select>
+					<div class="cam-row">
+						<button class="cam-button" id="poiSearchSubmit" type="button">Rechercher</button>
+						<button class="cam-button cam-button-secondary" id="poiSearchClear" type="button">Effacer</button>
+					</div>
+					<div id="poiSearchStatus" class="cam-status"></div>
+					<label class="cam-toggle"><input id="poiLayerToggle" type="checkbox">Afficher les POI sur la carte</label>
+					<div id="poiSearchResults" class="cam-results"></div>
+				</div>
+				<div id="cam-tab-add" class="cam-tab">
+					<div class="cam-title">Ajouter un lieu</div>
+					<label class="cam-label" for="poiAddName">Nom</label>
+					<input class="cam-input" id="poiAddName" type="text" placeholder="Nom du lieu">
+					<label class="cam-label" for="poiAddCategory">Catégorie</label>
+					<select class="cam-input" id="poiAddCategory"></select>
+					<label class="cam-label" for="poiAddAddress">Adresse</label>
+					<input class="cam-input" id="poiAddAddress" type="text" placeholder="Adresse ou repère">
+					<label class="cam-label" for="poiAddPhone">Téléphone</label>
+					<input class="cam-input" id="poiAddPhone" type="text" placeholder="+224 ...">
+					<label class="cam-label" for="poiAddDescription">Description</label>
+					<textarea class="cam-input cam-textarea" id="poiAddDescription" rows="3" placeholder="Détails utiles"></textarea>
+					<div class="cam-row">
+						<button class="cam-button cam-button-secondary" id="poiPickLocation" type="button">Choisir sur la carte</button>
+						<button class="cam-button cam-button-secondary" id="poiUseCenter" type="button">Utiliser le centre</button>
+					</div>
+					<div id="poiCoord" class="cam-coord">Point: non défini</div>
+					<div class="cam-row">
+						<button class="cam-button" id="poiAddSubmit" type="button">Envoyer</button>
+						<button class="cam-button cam-button-secondary" id="poiAddReset" type="button">Réinitialiser</button>
+					</div>
+					<div id="poiAddStatus" class="cam-status"></div>
+				</div>
+				<div id="cam-tab-report" class="cam-tab">
+					<div class="cam-title">Signaler un problème</div>
+					<label class="cam-label" for="reportType">Type</label>
+					<select class="cam-input" id="reportType"></select>
+					<label class="cam-label" for="reportStatus">Statut</label>
+					<select class="cam-input" id="reportStatus"></select>
+					<label class="cam-label" for="reportTitle">Titre</label>
+					<input class="cam-input" id="reportTitle" type="text" placeholder="Ex: nid de poule">
+					<label class="cam-label" for="reportDescription">Description</label>
+					<textarea class="cam-input cam-textarea" id="reportDescription" rows="3" placeholder="Détails du signalement"></textarea>
+					<div class="cam-row">
+						<button class="cam-button cam-button-secondary" id="reportPickLocation" type="button">Choisir sur la carte</button>
+						<button class="cam-button cam-button-secondary" id="reportUseCenter" type="button">Utiliser le centre</button>
+					</div>
+					<div id="reportCoord" class="cam-coord">Point: non défini</div>
+					<div class="cam-row">
+						<button class="cam-button" id="reportSubmit" type="button">Envoyer</button>
+						<button class="cam-button cam-button-secondary" id="reportReset" type="button">Réinitialiser</button>
+					</div>
+					<label class="cam-label" for="reportsFilterType">Filtrer (type)</label>
+					<select class="cam-input" id="reportsFilterType"></select>
+					<label class="cam-label" for="reportsFilterStatus">Filtrer (statut)</label>
+					<select class="cam-input" id="reportsFilterStatus"></select>
+					<label class="cam-toggle"><input id="reportsLayerToggle" type="checkbox">Afficher les signalements sur la carte</label>
+					<div id="reportStatusMessage" class="cam-status"></div>
+				</div>
 			</div>
 		</div>
 		

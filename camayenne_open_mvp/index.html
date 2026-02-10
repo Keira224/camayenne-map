@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camayenne Map MVP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="panel">
+      <header class="panel-header">
+        <h1>Camayenne Map</h1>
+        <p>Géolocalisation, POI, signalements, itinéraires</p>
+      </header>
+
+      <section class="quick-actions">
+        <button id="btnLocate" class="btn btn-primary" type="button">Ma position</button>
+        <button id="btnClearRoute" class="btn btn-secondary" type="button">Effacer itinéraire</button>
+        <button id="btnFocusArea" class="btn btn-secondary" type="button">Zone Camayenne</button>
+      </section>
+
+      <section class="layer-toggles">
+        <label><input id="togglePoi" type="checkbox" checked> Afficher POI</label>
+        <label><input id="toggleReports" type="checkbox" checked> Afficher signalements</label>
+      </section>
+
+      <nav class="tabs">
+        <button class="tab is-active" data-tab="search" type="button">Rechercher</button>
+        <button class="tab" data-tab="add" type="button">Ajouter lieu</button>
+        <button class="tab" data-tab="report" type="button">Signaler</button>
+      </nav>
+
+      <section class="tab-content is-active" id="tab-search">
+        <label for="searchName">Nom</label>
+        <input id="searchName" type="text" placeholder="Nom du lieu">
+        <label for="searchCategory">Catégorie</label>
+        <select id="searchCategory"></select>
+        <div class="row">
+          <button id="btnSearch" class="btn btn-primary" type="button">Rechercher</button>
+          <button id="btnResetSearch" class="btn btn-secondary" type="button">Effacer</button>
+        </div>
+        <div id="searchStatus" class="status"></div>
+        <div id="searchResults" class="results"></div>
+        <hr>
+        <div class="cam-subtitle">Itinéraire avancé</div>
+        <label for="routeFromSelect">Départ</label>
+        <select id="routeFromSelect"></select>
+        <label for="routeToSelect">Arrivée</label>
+        <select id="routeToSelect"></select>
+        <label for="routeProfileSelect">Mode de déplacement</label>
+        <select id="routeProfileSelect">
+          <option value="driving-car">Voiture</option>
+          <option value="cycling-regular">Vélo</option>
+          <option value="foot-walking">Marche</option>
+        </select>
+        <label for="routePreferenceSelect">Type de trajet</label>
+        <select id="routePreferenceSelect">
+          <option value="shortest">Le plus court</option>
+          <option value="recommended">Équilibré</option>
+          <option value="fastest">Le plus rapide</option>
+        </select>
+        <label class="route-toggle"><input id="routeAvoidMainRoads" type="checkbox"> Éviter les grands axes (si possible)</label>
+        <label class="route-toggle"><input id="routeRoundTrip" type="checkbox"> Aller-retour (A -> B -> A)</label>
+        <div class="row">
+          <button id="btnSwapRoute" class="btn btn-secondary" type="button">Inverser</button>
+          <button id="btnRouteBetween" class="btn btn-primary" type="button">Calculer itinéraire</button>
+        </div>
+        <div id="routeStatus" class="status"></div>
+        <div id="routeMetrics" class="status"></div>
+      </section>
+
+      <section class="tab-content" id="tab-add">
+        <label for="poiName">Nom</label>
+        <input id="poiName" type="text" placeholder="Nom du lieu">
+        <label for="poiCategory">Catégorie</label>
+        <select id="poiCategory"></select>
+        <label for="poiAddress">Adresse</label>
+        <input id="poiAddress" type="text" placeholder="Adresse ou repère">
+        <label for="poiPhone">Téléphone</label>
+        <input id="poiPhone" type="text" placeholder="+224 ...">
+        <label for="poiDescription">Description</label>
+        <textarea id="poiDescription" rows="3" placeholder="Détails utiles"></textarea>
+        <div class="row">
+          <button id="btnPickPoiPoint" class="btn btn-secondary" type="button">Choisir sur carte</button>
+          <button id="btnPoiCenter" class="btn btn-secondary" type="button">Utiliser centre</button>
+        </div>
+        <div id="poiCoord" class="coord">Point: non défini</div>
+        <button id="btnSubmitPoi" class="btn btn-primary" type="button">Envoyer</button>
+        <div id="poiStatus" class="status"></div>
+      </section>
+
+      <section class="tab-content" id="tab-report">
+        <label for="reportType">Type</label>
+        <select id="reportType"></select>
+        <label for="reportStatus">Statut</label>
+        <select id="reportStatus"></select>
+        <label for="reportTitle">Titre</label>
+        <input id="reportTitle" type="text" placeholder="Ex: nid de poule">
+        <label for="reportDescription">Description</label>
+        <textarea id="reportDescription" rows="3" placeholder="Détails du signalement"></textarea>
+        <div class="row">
+          <button id="btnPickReportPoint" class="btn btn-secondary" type="button">Choisir sur carte</button>
+          <button id="btnReportCenter" class="btn btn-secondary" type="button">Utiliser centre</button>
+        </div>
+        <div id="reportCoord" class="coord">Point: non défini</div>
+        <button id="btnSubmitReport" class="btn btn-primary" type="button">Envoyer</button>
+        <hr>
+        <label for="filterType">Filtrer type</label>
+        <select id="filterType"></select>
+        <label for="filterStatus">Filtrer statut</label>
+        <select id="filterStatus"></select>
+        <div id="reportStatusMessage" class="status"></div>
+      </section>
+    </aside>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div class="hint" id="hintText">Clique sur un marqueur pour voir les détails et lancer un itinéraire.</div>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
