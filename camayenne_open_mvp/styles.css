@@ -265,6 +265,42 @@ hr {
   width: 100%;
 }
 
+.user-heading-wrap {
+  position: relative;
+  width: 38px;
+  height: 38px;
+}
+
+.user-heading-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -10px;
+  margin-top: -16px;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 24px solid #1a73e8;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
+  transform-origin: 50% 16px;
+  opacity: 0.86;
+}
+
+.user-heading-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.18);
+}
+
 .hint {
   position: absolute;
   left: 12px;

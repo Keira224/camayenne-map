@@ -324,14 +324,42 @@
     dom.btnStopNav.disabled = !state.nav.active;
   }
 
+  function getNavigationDisplayHeading(latlng, explicitHeading) {
+    if (!state.nav.active) return null;
+    var heading = normalizeDegrees(explicitHeading != null ? explicitHeading : state.nav.currentHeading);
+    if (heading != null) return heading;
+    if (latlng && state.nav.destination) {
+      return bearingDegrees(latlng, state.nav.destination);
+    }
+    return null;
+  }
+
   function drawUserLocation(latlng, accuracyMeters, options) {
     var opts = options || {};
     userLayer.clearLayers();
+    var navHeading = getNavigationDisplayHeading(latlng, opts.heading);
+    var headingMarker = null;
+
+    if (navHeading != null) {
+      headingMarker = L.marker(latlng, {
+        icon: L.divIcon({
+          className: "",
+          html:
+            '<div class="user-heading-wrap">' +
+            '<div class="user-heading-arrow" style="transform: rotate(' + Math.round(navHeading) + 'deg)"></div>' +
+            '<div class="user-heading-dot"></div>' +
+            '</div>',
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        })
+      }).addTo(userLayer);
+    }
+
     var marker = L.circleMarker(latlng, {
-      radius: 8,
+      radius: navHeading != null ? 6 : 8,
       color: "#fff",
       weight: 2,
-      fillColor: "#0f8b6d",
+      fillColor: "#1a73e8",
       fillOpacity: 1
     }).addTo(userLayer);
 
@@ -340,15 +368,15 @@
         radius: accuracyMeters,
         color: "#0f8b6d",
         weight: 1,
-        fillColor: "#0f8b6d",
+        fillColor: "#1a73e8",
         fillOpacity: 0.08
       }).addTo(userLayer);
-      marker.bindPopup("Vous êtes ici (précision ±" + Math.round(accuracyMeters) + " m)");
+      (headingMarker || marker).bindPopup("Vous êtes ici (précision ±" + Math.round(accuracyMeters) + " m)");
     } else {
-      marker.bindPopup("Vous êtes ici");
+      (headingMarker || marker).bindPopup("Vous êtes ici");
     }
     if (opts.openPopup === true) {
-      marker.openPopup();
+      (headingMarker || marker).openPopup();
     }
   }
 
@@ -1352,6 +1380,9 @@
       setNavProgress("", null);
     }
     setCompassVisible(false);
+    if (state.currentPosition) {
+      drawUserLocation(state.currentPosition, state.currentAccuracy, { openPopup: false, heading: null });
+    }
   }
 
   function syncNavFromRouteContext() {
@@ -1448,12 +1479,6 @@
       return;
     }
 
-    updateCurrentPosition(latlng, accuracy, { openPopup: false });
-
-    if (cfg.navFollowUser !== false) {
-      map.panTo(latlng, { animate: true, duration: 0.5 });
-    }
-
     if (coordsHeading != null && !isNaN(coordsHeading)) {
       state.nav.currentHeading = normalizeDegrees(coordsHeading);
     } else if (state.nav.previousTrackPoint) {
@@ -1463,6 +1488,15 @@
       }
     }
     state.nav.previousTrackPoint = latlng;
+
+    updateCurrentPosition(latlng, accuracy, {
+      openPopup: false,
+      heading: state.nav.currentHeading
+    });
+
+    if (cfg.navFollowUser !== false) {
+      map.panTo(latlng, { animate: true, duration: 0.5 });
+    }
 
     updateNavigationProgress(latlng, accuracy);
     updateCompass(latlng, state.nav.currentHeading);
@@ -1494,6 +1528,10 @@
       }
     }
     if (state.currentPosition) {
+      drawUserLocation(state.currentPosition, state.currentAccuracy, {
+        openPopup: false,
+        heading: state.nav.currentHeading
+      });
       updateNavigationProgress(state.currentPosition, state.currentAccuracy);
       updateCompass(state.currentPosition, state.nav.currentHeading);
     }
