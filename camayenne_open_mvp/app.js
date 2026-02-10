@@ -713,10 +713,14 @@
       var lat = Number(row.latitude);
       var lon = Number(row.longitude);
       var marker = L.marker([lat, lon], { icon: poiIcon() }).addTo(poiLayer);
+      var photoHtml = row.photo_url
+        ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+        : "";
       var html = "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
         "<br>Catégorie: " + escapeHtml(row.category || "") +
         "<br>Adresse: " + escapeHtml(row.address || "") +
         "<br>Téléphone: " + escapeHtml(row.phone || "") +
+        photoHtml +
         "<br><button data-route-btn type='button'>Itinéraire vers ce lieu</button>";
       marker.bindPopup(html);
       addPopupRouteHandler(marker, lat, lon);
@@ -769,7 +773,10 @@
     marker.bindPopup(
       "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
       "<br>" + escapeHtml(row.category || "") +
-      "<br>" + escapeHtml(row.address || "")
+      "<br>" + escapeHtml(row.address || "") +
+      (row.photo_url
+        ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+        : "")
     ).openPopup();
   }
 
@@ -793,7 +800,10 @@
         .bindPopup(
           "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
           "<br>" + escapeHtml(row.category || "") +
-          "<br>" + escapeHtml(row.address || "")
+          "<br>" + escapeHtml(row.address || "") +
+          (row.photo_url
+            ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+            : "")
         )
         .addTo(searchFocusLayer);
     });

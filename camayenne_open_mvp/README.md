@@ -10,6 +10,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 - Itinéraire entre deux lieux de Camayenne
 - Itinéraire depuis votre position actuelle (même hors Camayenne)
 - Guidage en direct (position qui bouge pendant la marche)
+- Photo des lieux (prise terrain via back-office)
 
 ## 1) Préparer Supabase
 
@@ -176,3 +177,4 @@ Fonctions disponibles:
 - Changer le statut des signalements
 - Supprimer des signalements
 - Ajouter / modifier / supprimer des POI
+- Ajouter/supprimer une photo par POI (upload Supabase Storage)

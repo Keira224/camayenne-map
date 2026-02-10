@@ -178,6 +178,19 @@ textarea {
   margin-top: 10px;
 }
 
+.photo-preview-wrap {
+  margin-top: 8px;
+}
+
+.photo-preview {
+  width: 100%;
+  max-height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  object-fit: cover;
+  background: #f6fbfa;
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);

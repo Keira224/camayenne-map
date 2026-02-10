@@ -51,6 +51,8 @@ window.CAMAYENNE_CONFIG = {
     poi: "poi",
     reports: "reports"
   },
+  poiPhotoBucket: "poi-photos",
+  poiPhotoMaxSizeBytes: 5242880,
 
   // openrouteservice
   openRouteServiceApiKey: "",

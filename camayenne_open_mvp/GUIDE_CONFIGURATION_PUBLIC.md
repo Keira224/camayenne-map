@@ -231,3 +231,7 @@ Si ça bloque, envoie ces 4 éléments:
 - chargement des stats
 - changement statut signalement
 - ajout/modification/suppression POI
+- upload photo POI depuis mobile (`capture="environment"`)
+
+6. Si la colonne photo n'existe pas encore:
+- exécute aussi `camayenne_open_mvp/supabase/schema.sql` (ajout `photo_url`, `photo_path`, `photo_taken_at`)

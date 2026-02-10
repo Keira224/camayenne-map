@@ -99,6 +99,13 @@
           </select>
           <label for="poiDescription">Description</label>
           <textarea id="poiDescription" rows="3" placeholder="Description"></textarea>
+          <label for="poiPhotoFile">Photo du lieu</label>
+          <input id="poiPhotoFile" type="file" accept="image/*" capture="environment">
+          <input id="poiCurrentPhotoPath" type="hidden">
+          <div class="photo-preview-wrap">
+            <img id="poiPhotoPreview" class="photo-preview" alt="Aperçu photo POI" hidden>
+          </div>
+          <button id="btnRemovePoiPhoto" class="btn btn-danger" type="button">Supprimer la photo</button>
           <div class="row">
             <button id="btnSavePoi" class="btn btn-primary" type="button">Enregistrer POI</button>
             <button id="btnResetPoiForm" class="btn btn-secondary" type="button">Réinitialiser</button>

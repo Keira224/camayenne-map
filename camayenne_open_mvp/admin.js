@@ -4,12 +4,15 @@
   var cfg = window.CAMAYENNE_CONFIG || {};
   var categories = cfg.poiCategories || [];
   var reportStatuses = cfg.reportStatuses || ["NOUVEAU", "EN_COURS", "RESOLU"];
+  var poiPhotoBucket = cfg.poiPhotoBucket || "poi-photos";
   var app = {
     client: null,
     user: null,
     profile: null,
     poiRows: [],
-    reportRows: []
+    reportRows: [],
+    poiPhotoObjectUrl: null,
+    removePoiPhotoRequested: false
   };
 
   var dom = {
@@ -37,6 +40,10 @@
     poiLongitude: document.getElementById("poiLongitude"),
     poiStatus: document.getElementById("poiStatus"),
     poiDescription: document.getElementById("poiDescription"),
+    poiPhotoFile: document.getElementById("poiPhotoFile"),
+    poiCurrentPhotoPath: document.getElementById("poiCurrentPhotoPath"),
+    poiPhotoPreview: document.getElementById("poiPhotoPreview"),
+    btnRemovePoiPhoto: document.getElementById("btnRemovePoiPhoto"),
     btnSavePoi: document.getElementById("btnSavePoi"),
     btnResetPoiForm: document.getElementById("btnResetPoiForm"),
     poiFormStatus: document.getElementById("poiFormStatus"),
@@ -85,6 +92,87 @@
       opt.textContent = value;
       node.appendChild(opt);
     });
+  }
+
+  function clearPoiPhotoPreview() {
+    if (app.poiPhotoObjectUrl) {
+      URL.revokeObjectURL(app.poiPhotoObjectUrl);
+      app.poiPhotoObjectUrl = null;
+    }
+    if (dom.poiPhotoPreview) {
+      dom.poiPhotoPreview.hidden = true;
+      dom.poiPhotoPreview.removeAttribute("src");
+    }
+  }
+
+  function setPoiPhotoPreview(src) {
+    if (!dom.poiPhotoPreview) return;
+    if (!src) {
+      clearPoiPhotoPreview();
+      return;
+    }
+    dom.poiPhotoPreview.src = src;
+    dom.poiPhotoPreview.hidden = false;
+  }
+
+  function getFileExtension(filename, fallback) {
+    var name = String(filename || "");
+    var idx = name.lastIndexOf(".");
+    if (idx < 0) return fallback || "jpg";
+    var ext = name.slice(idx + 1).toLowerCase();
+    if (!ext) return fallback || "jpg";
+    return ext.replace(/[^a-z0-9]/g, "") || (fallback || "jpg");
+  }
+
+  function getPhotoExtension(file) {
+    var byMime = {
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp"
+    };
+    return byMime[file.type] || getFileExtension(file.name, "jpg");
+  }
+
+  function validatePoiPhoto(file) {
+    if (!file) return null;
+    var maxSize = cfg.poiPhotoMaxSizeBytes || (5 * 1024 * 1024);
+    if (file.size > maxSize) {
+      return "Photo trop lourde (max " + Math.round(maxSize / (1024 * 1024)) + " MB).";
+    }
+    if (!/^image\//.test(file.type || "")) {
+      return "Format photo invalide.";
+    }
+    return null;
+  }
+
+  async function uploadPoiPhoto(poiId, file) {
+    var ext = getPhotoExtension(file);
+    var path = "poi/" + poiId + "/" + Date.now() + "." + ext;
+    var uploadRes = await app.client.storage
+      .from(poiPhotoBucket)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || ("image/" + ext)
+      });
+    if (uploadRes.error) throw uploadRes.error;
+
+    var pub = app.client.storage.from(poiPhotoBucket).getPublicUrl(path);
+    var publicUrl = pub && pub.data ? pub.data.publicUrl : "";
+    return {
+      photo_path: path,
+      photo_url: publicUrl,
+      photo_taken_at: new Date().toISOString()
+    };
+  }
+
+  async function deletePoiPhotoObject(path) {
+    if (!path) return;
+    var delRes = await app.client.storage
+      .from(poiPhotoBucket)
+      .remove([path]);
+    if (delRes.error) throw delRes.error;
   }
 
   function getSupabaseReady() {
@@ -198,11 +286,18 @@
     dom.poiLongitude.value = "";
     dom.poiStatus.value = "ACTIF";
     dom.poiDescription.value = "";
+    dom.poiCurrentPhotoPath.value = "";
+    app.removePoiPhotoRequested = false;
+    if (dom.poiPhotoFile) {
+      dom.poiPhotoFile.value = "";
+    }
+    clearPoiPhotoPreview();
     dom.poiFormTitle.textContent = "Ajouter un POI";
     setStatus(dom.poiFormStatus, "", null);
   }
 
   function setPoiForm(row) {
+    clearPoiPhotoPreview();
     dom.poiEditId.value = String(row.id);
     dom.poiName.value = row.name || "";
     dom.poiCategory.value = row.category || categories[0] || "";
@@ -212,6 +307,14 @@
     dom.poiLongitude.value = row.longitude;
     dom.poiStatus.value = row.status || "ACTIF";
     dom.poiDescription.value = row.description || "";
+    dom.poiCurrentPhotoPath.value = row.photo_path || "";
+    app.removePoiPhotoRequested = false;
+    if (dom.poiPhotoFile) {
+      dom.poiPhotoFile.value = "";
+    }
+    if (row.photo_url) {
+      setPoiPhotoPreview(row.photo_url);
+    }
     dom.poiFormTitle.textContent = "Modifier POI #" + row.id;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -230,7 +333,7 @@
         "<td>" + escapeHtml(row.name) + "</td>" +
         "<td>" + escapeHtml(row.category || "") + "</td>" +
         "<td>" + Number(row.latitude).toFixed(6) + ", " + Number(row.longitude).toFixed(6) + "</td>" +
-        "<td>" + escapeHtml(row.status || "") + "</td>" +
+        "<td>" + escapeHtml(row.status || "") + (row.photo_url ? "<br><small>Photo: oui</small>" : "<br><small>Photo: non</small>") + "</td>" +
         "<td class='actions'>" +
         "<button class='btn btn-secondary' type='button' data-action='poi-edit' data-id='" + row.id + "'>Modifier</button> " +
         "<button class='btn btn-danger' type='button' data-action='poi-delete' data-id='" + row.id + "'>Supprimer</button>" +
@@ -265,6 +368,15 @@
 
   async function savePoi() {
     var editId = dom.poiEditId.value ? Number(dom.poiEditId.value) : null;
+    var selectedPhotoFile = dom.poiPhotoFile && dom.poiPhotoFile.files && dom.poiPhotoFile.files.length
+      ? dom.poiPhotoFile.files[0]
+      : null;
+    var photoValidationError = validatePoiPhoto(selectedPhotoFile);
+    if (photoValidationError) {
+      setStatus(dom.poiFormStatus, photoValidationError, "error");
+      return;
+    }
+
     var payload = {
       name: dom.poiName.value.trim(),
       category: dom.poiCategory.value,
@@ -287,20 +399,69 @@
 
     setStatus(dom.poiFormStatus, "Enregistrement...", null);
     var response;
+    var poiId = editId;
+    var oldPhotoPath = dom.poiCurrentPhotoPath.value || "";
+
     if (editId) {
+      var updatePayload = Object.assign({}, payload);
+      if (app.removePoiPhotoRequested && !selectedPhotoFile) {
+        updatePayload.photo_url = null;
+        updatePayload.photo_path = null;
+        updatePayload.photo_taken_at = null;
+      }
       response = await app.client
         .from("poi")
-        .update(payload)
+        .update(updatePayload)
         .eq("id", editId);
+      if (response.error) {
+        setStatus(dom.poiFormStatus, "Erreur: " + response.error.message, "error");
+        return;
+      }
     } else {
       response = await app.client
         .from("poi")
-        .insert(payload);
+        .insert(payload)
+        .select("id")
+        .single();
+      if (response.error) {
+        setStatus(dom.poiFormStatus, "Erreur: " + response.error.message, "error");
+        return;
+      }
+      poiId = response.data && response.data.id ? Number(response.data.id) : null;
+      if (!poiId) {
+        setStatus(dom.poiFormStatus, "Erreur: identifiant POI manquant après insertion.", "error");
+        return;
+      }
     }
 
-    if (response.error) {
-      setStatus(dom.poiFormStatus, "Erreur: " + response.error.message, "error");
-      return;
+    if (selectedPhotoFile && poiId) {
+      try {
+        var photoPayload = await uploadPoiPhoto(poiId, selectedPhotoFile);
+        var photoUpdate = await app.client
+          .from("poi")
+          .update(photoPayload)
+          .eq("id", poiId);
+        if (photoUpdate.error) {
+          setStatus(dom.poiFormStatus, "Erreur photo: " + photoUpdate.error.message, "error");
+          return;
+        }
+        if (oldPhotoPath && oldPhotoPath !== photoPayload.photo_path) {
+          try {
+            await deletePoiPhotoObject(oldPhotoPath);
+          } catch (_) {
+            // non bloquant
+          }
+        }
+      } catch (err) {
+        setStatus(dom.poiFormStatus, "Erreur upload photo: " + err.message, "error");
+        return;
+      }
+    } else if (app.removePoiPhotoRequested && oldPhotoPath) {
+      try {
+        await deletePoiPhotoObject(oldPhotoPath);
+      } catch (_) {
+        // non bloquant
+      }
     }
 
     setStatus(dom.poiFormStatus, editId ? "POI mis à jour." : "POI ajouté.", "success");
@@ -308,12 +469,19 @@
     await Promise.all([loadPois(), refreshStats()]);
   }
 
-  async function deletePoi(poiId) {
+  async function deletePoi(poiId, photoPath) {
     var response = await app.client
       .from("poi")
       .delete()
       .eq("id", poiId);
     if (response.error) throw response.error;
+    if (photoPath) {
+      try {
+        await deletePoiPhotoObject(photoPath);
+      } catch (_) {
+        // non bloquant
+      }
+    }
   }
 
   async function loadAdminData() {
@@ -443,6 +611,48 @@
 
     dom.btnResetPoiForm.addEventListener("click", resetPoiForm);
 
+    if (dom.poiPhotoFile) {
+      dom.poiPhotoFile.addEventListener("change", function () {
+        var file = dom.poiPhotoFile.files && dom.poiPhotoFile.files.length ? dom.poiPhotoFile.files[0] : null;
+        if (!file) {
+          if (dom.poiCurrentPhotoPath.value) {
+            var editedRow = app.poiRows.find(function (row) {
+              return String(row.id) === String(dom.poiEditId.value);
+            });
+            if (editedRow && editedRow.photo_url) {
+              setPoiPhotoPreview(editedRow.photo_url);
+            } else {
+              clearPoiPhotoPreview();
+            }
+          } else {
+            clearPoiPhotoPreview();
+          }
+          return;
+        }
+        var err = validatePoiPhoto(file);
+        if (err) {
+          setStatus(dom.poiFormStatus, err, "error");
+          dom.poiPhotoFile.value = "";
+          return;
+        }
+        app.removePoiPhotoRequested = false;
+        clearPoiPhotoPreview();
+        app.poiPhotoObjectUrl = URL.createObjectURL(file);
+        setPoiPhotoPreview(app.poiPhotoObjectUrl);
+      });
+    }
+
+    if (dom.btnRemovePoiPhoto) {
+      dom.btnRemovePoiPhoto.addEventListener("click", function () {
+        app.removePoiPhotoRequested = true;
+        if (dom.poiPhotoFile) {
+          dom.poiPhotoFile.value = "";
+        }
+        clearPoiPhotoPreview();
+        setStatus(dom.poiFormStatus, "La photo sera supprimée à l'enregistrement.", null);
+      });
+    }
+
     dom.btnReloadPoi.addEventListener("click", function () {
       loadPois().catch(function (err) {
         setStatus(dom.poiListStatus, "Erreur: " + err.message, "error");
@@ -469,7 +679,7 @@
 
       if (action === "poi-delete") {
         if (!window.confirm("Supprimer le POI #" + poiId + " ?")) return;
-        deletePoi(poiId).then(function () {
+        deletePoi(poiId, row.photo_path).then(function () {
           setStatus(dom.poiListStatus, "POI supprimé.", "success");
           return Promise.all([loadPois(), refreshStats()]);
         }).catch(function (err) {

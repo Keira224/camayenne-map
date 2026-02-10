@@ -62,6 +62,61 @@ $$;
 
 grant execute on function public.is_admin() to authenticated;
 
+-- Storage bucket pour les photos de POI
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'poi-photos',
+  'poi-photos',
+  true,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do nothing;
+
+drop policy if exists "poi_photos_read_anon" on storage.objects;
+drop policy if exists "poi_photos_read_authenticated" on storage.objects;
+drop policy if exists "poi_photos_insert_admin" on storage.objects;
+drop policy if exists "poi_photos_update_admin" on storage.objects;
+drop policy if exists "poi_photos_delete_admin" on storage.objects;
+
+create policy "poi_photos_read_anon" on storage.objects
+for select
+to anon
+using (bucket_id = 'poi-photos');
+
+create policy "poi_photos_read_authenticated" on storage.objects
+for select
+to authenticated
+using (bucket_id = 'poi-photos');
+
+create policy "poi_photos_insert_admin" on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'poi-photos'
+  and public.is_admin()
+);
+
+create policy "poi_photos_update_admin" on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'poi-photos'
+  and public.is_admin()
+)
+with check (
+  bucket_id = 'poi-photos'
+  and public.is_admin()
+);
+
+create policy "poi_photos_delete_admin" on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'poi-photos'
+  and public.is_admin()
+);
+
 -- Permissions de lecture pour les comptes connectés (nécessaire pour le back-office)
 drop policy if exists "poi_select_authenticated" on public.poi;
 drop policy if exists "reports_select_authenticated" on public.reports;
@@ -121,9 +176,9 @@ using (public.is_admin());
 
 -- Utilitaire: promotion d'un utilisateur en admin
 -- Remplace admin@camayenne.gn puis exécute ce bloc
-insert into public.profiles(user_id, full_name, role)
-select id, 'Admin Camayenne', 'admin'
-from auth.users
-where email = 'admin@camayenne.gn'
-on conflict (user_id)
-do update set role = excluded.role, full_name = excluded.full_name;
+-- insert into public.profiles(user_id, full_name, role)
+-- select id, 'Admin Camayenne', 'admin'
+-- from auth.users
+-- where email = 'admin@camayenne.gn'
+-- on conflict (user_id)
+-- do update set role = excluded.role, full_name = excluded.full_name;
