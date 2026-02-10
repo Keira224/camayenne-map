@@ -21,6 +21,8 @@ window.CAMAYENNE_CONFIG = {
   allowPoiSubmission: false,
   useSecureFunctions: true,
   functionsBaseUrl: "https://YOUR_PROJECT.supabase.co/functions/v1",
+  // Optionnel: JWT anon legacy (eyJ...) pour fonctions avec verify_jwt activé
+  functionsAuthToken: "",
   functionNames: {
     submitReport: "submit-report",
     route: "route"

@@ -377,6 +377,11 @@
     return !!(cfg.functionsBaseUrl && cfg.supabaseAnonKey && cfg.functionNames);
   }
 
+  function looksLikeJwt(value) {
+    if (!value) return false;
+    return String(value).split(".").length === 3;
+  }
+
   async function supabaseFetch(path, options) {
     var url = cfg.supabaseUrl.replace(/\/+$/, "") + "/rest/v1/" + path;
     var headers = Object.assign({
@@ -398,13 +403,20 @@
       throw new Error("Fonctions sécurisées non configurées.");
     }
     var fnUrl = cfg.functionsBaseUrl.replace(/\/+$/, "") + "/" + functionName;
+    var headers = {
+      "Content-Type": "application/json",
+      apikey: cfg.supabaseAnonKey
+    };
+    var token = cfg.functionsAuthToken || null;
+    if (!token && looksLikeJwt(cfg.supabaseAnonKey)) {
+      token = cfg.supabaseAnonKey;
+    }
+    if (token) {
+      headers.Authorization = "Bearer " + token;
+    }
     var res = await fetch(fnUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: cfg.supabaseAnonKey,
-        Authorization: "Bearer " + cfg.supabaseAnonKey
-      },
+      headers: headers,
       body: JSON.stringify(payload || {})
     });
     if (!res.ok) {
