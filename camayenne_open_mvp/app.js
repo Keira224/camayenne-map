@@ -50,6 +50,7 @@
     currentPosition: null,
     currentAccuracy: null,
     currentPositionAt: null,
+    panelCollapsed: null,
     pickMode: null,
     selectedPoiPoint: null,
     selectedReportPoint: null,
@@ -80,6 +81,9 @@
   var reportStatuses = cfg.reportStatuses || ["NOUVEAU", "EN_COURS", "RESOLU"];
 
   var dom = {
+    panel: document.getElementById("panel"),
+    btnPanelToggle: document.getElementById("btnPanelToggle"),
+    quickTabButtons: document.querySelectorAll("[data-quick-tab]"),
     tabs: document.querySelectorAll(".tab"),
     tabContents: document.querySelectorAll(".tab-content"),
     tabAddButton: document.querySelector(".tab[data-tab='add']"),
@@ -615,6 +619,29 @@
     dom.tabContents.forEach(function (section) {
       section.classList.toggle("is-active", section.id === "tab-" + name);
     });
+  }
+
+  function isMobileLayout() {
+    return window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  function setPanelCollapsed(collapsed) {
+    if (state.panelCollapsed === collapsed) return;
+    state.panelCollapsed = !!collapsed;
+    document.body.classList.toggle("panel-collapsed", state.panelCollapsed);
+    if (dom.btnPanelToggle) {
+      dom.btnPanelToggle.textContent = state.panelCollapsed ? "Afficher le panneau" : "Masquer le panneau";
+    }
+  }
+
+  function syncPanelWithViewport(forceDefaultForMobile) {
+    if (!isMobileLayout()) {
+      setPanelCollapsed(false);
+      return;
+    }
+    if (forceDefaultForMobile || state.panelCollapsed == null) {
+      setPanelCollapsed(true);
+    }
   }
 
   function getSupabaseReady() {
@@ -1285,6 +1312,9 @@
     setRouteStatus(message, "success");
     setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
     setRouteContext(routeResult, destinationLatLng);
+    if (isMobileLayout()) {
+      setPanelCollapsed(true);
+    }
     if (cfg.navAutoStart === true) {
       startNavigation().catch(function (err) {
         setNavStatus("Impossible de démarrer le guidage: " + err.message, "error");
@@ -1469,6 +1499,13 @@
     if (dom.tabAddPanel) {
       dom.tabAddPanel.style.display = "none";
     }
+    if (dom.quickTabButtons && dom.quickTabButtons.length) {
+      dom.quickTabButtons.forEach(function (btn) {
+        if (btn.dataset.quickTab === "add") {
+          btn.style.display = "none";
+        }
+      });
+    }
     if (dom.tabs && dom.tabs.length) {
       activateTab("search");
     }
@@ -1478,7 +1515,33 @@
     dom.tabs.forEach(function (tab) {
       tab.addEventListener("click", function () {
         activateTab(tab.dataset.tab);
+        if (isMobileLayout()) {
+          setPanelCollapsed(false);
+        }
       });
+    });
+
+    if (dom.quickTabButtons && dom.quickTabButtons.length) {
+      dom.quickTabButtons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var targetTab = btn.dataset.quickTab;
+          if (!targetTab) return;
+          activateTab(targetTab);
+          if (isMobileLayout()) {
+            setPanelCollapsed(false);
+          }
+        });
+      });
+    }
+
+    if (dom.btnPanelToggle) {
+      dom.btnPanelToggle.addEventListener("click", function () {
+        setPanelCollapsed(!state.panelCollapsed);
+      });
+    }
+
+    window.addEventListener("resize", function () {
+      syncPanelWithViewport(false);
     });
 
     dom.btnSearch.addEventListener("click", runSearch);
@@ -1487,6 +1550,9 @@
       locateUser().catch(function () {
         setRouteStatus("Impossible d'obtenir la position.", "error");
       });
+      if (isMobileLayout()) {
+        setPanelCollapsed(true);
+      }
     });
     dom.btnClearRoute.addEventListener("click", function () {
       routeLayer.clearLayers();
@@ -1497,6 +1563,9 @@
     });
     dom.btnFocusArea.addEventListener("click", function () {
       map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
+      if (isMobileLayout()) {
+        setPanelCollapsed(true);
+      }
     });
     if (dom.btnSwapRoute) {
       dom.btnSwapRoute.addEventListener("click", swapRouteEndpoints);
@@ -1509,6 +1578,9 @@
         startNavigation().catch(function (err) {
           setNavStatus("Guidage impossible: " + err.message, "error");
         });
+        if (isMobileLayout()) {
+          setPanelCollapsed(true);
+        }
       });
     }
     if (dom.btnStopNav) {
@@ -1520,6 +1592,9 @@
     dom.btnPickPoiPoint.addEventListener("click", function () {
       state.pickMode = "poi";
       dom.hintText.textContent = "Mode ajout lieu: clique un point sur la carte.";
+      if (isMobileLayout()) {
+        setPanelCollapsed(true);
+      }
     });
     dom.btnPoiCenter.addEventListener("click", function () {
       setPickPoint("poi", map.getCenter());
@@ -1529,6 +1604,9 @@
     dom.btnPickReportPoint.addEventListener("click", function () {
       state.pickMode = "report";
       dom.hintText.textContent = "Mode signalement: clique un point sur la carte.";
+      if (isMobileLayout()) {
+        setPanelCollapsed(true);
+      }
     });
     dom.btnReportCenter.addEventListener("click", function () {
       setPickPoint("report", map.getCenter());
@@ -1574,6 +1652,7 @@
     }
     applyPublicModeUi();
     updateNavigationButtons();
+    syncPanelWithViewport(true);
 
     wireEvents();
     if (cfg.lockToFocusBounds !== false) {

@@ -17,11 +17,21 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="panel">
+    <aside class="panel" id="panel">
+      <div class="panel-handle">
+        <span class="panel-grip" aria-hidden="true"></span>
+        <button id="btnPanelToggle" class="btn btn-secondary btn-panel-toggle" type="button">Masquer le panneau</button>
+      </div>
       <header class="panel-header">
         <h1>Camayenne Map</h1>
         <p>Géolocalisation, POI, signalements, itinéraires | <a href="./admin.html">Back-office</a></p>
       </header>
+      <section class="mobile-shortcuts" aria-label="Actions rapides">
+        <button class="shortcut" type="button" data-quick-tab="search">Trouver</button>
+        <button class="shortcut" type="button" data-quick-tab="add">Ajouter</button>
+        <button class="shortcut" type="button" data-quick-tab="report">Signaler</button>
+      </section>
+      <div class="panel-scroll">
 
       <section class="quick-actions">
         <button id="btnLocate" class="btn btn-primary" type="button">Ma position</button>
@@ -52,25 +62,28 @@
         <div id="searchStatus" class="status"></div>
         <div id="searchResults" class="results"></div>
         <hr>
-        <div class="cam-subtitle">Itinéraire avancé</div>
+        <div class="cam-subtitle">Itinéraire</div>
         <label for="routeFromSelect">Départ</label>
         <select id="routeFromSelect"></select>
         <label for="routeToSelect">Arrivée</label>
         <select id="routeToSelect"></select>
-        <label for="routeProfileSelect">Mode de déplacement</label>
-        <select id="routeProfileSelect">
-          <option value="driving-car">Voiture</option>
-          <option value="cycling-regular">Vélo</option>
-          <option value="foot-walking">Marche</option>
-        </select>
-        <label for="routePreferenceSelect">Type de trajet</label>
-        <select id="routePreferenceSelect">
-          <option value="shortest">Le plus court</option>
-          <option value="recommended">Équilibré</option>
-          <option value="fastest">Le plus rapide</option>
-        </select>
-        <label class="route-toggle"><input id="routeAvoidMainRoads" type="checkbox"> Éviter les grands axes (si possible)</label>
-        <label class="route-toggle"><input id="routeRoundTrip" type="checkbox"> Aller-retour (A -> B -> A)</label>
+        <details class="advanced-options">
+          <summary>Options itinéraire</summary>
+          <label for="routeProfileSelect">Mode de déplacement</label>
+          <select id="routeProfileSelect">
+            <option value="driving-car">Voiture</option>
+            <option value="cycling-regular">Vélo</option>
+            <option value="foot-walking">Marche</option>
+          </select>
+          <label for="routePreferenceSelect">Type de trajet</label>
+          <select id="routePreferenceSelect">
+            <option value="shortest">Le plus court</option>
+            <option value="recommended">Équilibré</option>
+            <option value="fastest">Le plus rapide</option>
+          </select>
+          <label class="route-toggle"><input id="routeAvoidMainRoads" type="checkbox"> Éviter les grands axes (si possible)</label>
+          <label class="route-toggle"><input id="routeRoundTrip" type="checkbox"> Aller-retour (A -> B -> A)</label>
+        </details>
         <div class="row">
           <button id="btnSwapRoute" class="btn btn-secondary" type="button">Inverser</button>
           <button id="btnRouteBetween" class="btn btn-primary" type="button">Calculer itinéraire</button>
@@ -127,6 +140,7 @@
         <select id="filterStatus"></select>
         <div id="reportStatusMessage" class="status"></div>
       </section>
+      </div>
     </aside>
 
     <main class="map-wrap">
