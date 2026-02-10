@@ -596,12 +596,24 @@
     });
   }
 
-  function shouldRejectGpsJump(newLatLng, newAccuracy) {
+  function shouldRejectGpsJump(newLatLng, newAccuracy, options) {
+    var opts = options || {};
+    if (opts.forceFresh === true) return false;
     if (!state.currentPosition || !state.currentPositionAt) return false;
     if (!cfg.gpsJumpProtection) return false;
 
     var previousAgeMs = Date.now() - state.currentPositionAt;
     if (previousAgeMs > (cfg.gpsJumpProtectMaxAgeMs || 5 * 60 * 1000)) return false;
+    var previousAccuracy = state.currentAccuracy;
+    if (
+      previousAccuracy &&
+      newAccuracy &&
+      isFinite(previousAccuracy) &&
+      isFinite(newAccuracy) &&
+      newAccuracy <= (previousAccuracy * 0.8)
+    ) {
+      return false;
+    }
 
     var jumpDistance = distanceMeters(
       { lat: state.currentPosition.lat, lng: state.currentPosition.lng },
@@ -610,6 +622,12 @@
     var maxJumpMeters = cfg.gpsJumpRejectDistanceMeters || 220;
     var accuracyTooLow = newAccuracy == null || newAccuracy > (cfg.gpsJumpRejectAccuracyMeters || 60);
     return jumpDistance > maxJumpMeters && accuracyTooLow;
+  }
+
+  function isCurrentPositionFresh(maxAgeMs) {
+    if (!state.currentPosition || !state.currentPositionAt) return false;
+    var maxAge = maxAgeMs != null ? maxAgeMs : (cfg.currentPositionMaxAgeMs || 45000);
+    return (Date.now() - state.currentPositionAt) <= maxAge;
   }
 
   function activateTab(name) {
@@ -1052,27 +1070,31 @@
     }
   }
 
-  function locateUser() {
+  function locateUser(options) {
+    var opts = options || {};
     if (!navigator.geolocation) {
       setRouteStatus("La géolocalisation n'est pas disponible.", "error");
       return Promise.reject(new Error("no geolocation"));
+    }
+    if (!opts.silent) {
+      setRouteStatus("Recherche de votre position...", null);
     }
     return new Promise(function (resolve, reject) {
       getBestPosition().then(function (pos) {
         var latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
         var accuracy = pos.coords && pos.coords.accuracy ? pos.coords.accuracy : null;
-        if (shouldRejectGpsJump(latlng, accuracy)) {
+        if (shouldRejectGpsJump(latlng, accuracy, opts)) {
           setRouteStatus(
             "Lecture GPS instable ignorée (saut détecté). Réessaie dans 2-3 secondes.",
             "error"
           );
-          if (state.currentPosition) {
+          if (state.currentPosition && !opts.forceFresh) {
             drawUserLocation(state.currentPosition, state.currentAccuracy, { openPopup: false });
             resolve(state.currentPosition);
             return;
           }
         }
-        updateCurrentPosition(latlng, accuracy, { openPopup: true });
+        updateCurrentPosition(latlng, accuracy, { openPopup: opts.openPopup !== false });
         if (cfg.keepMapFocused === true && focusBounds.contains(latlng)) {
           map.setView(latlng, cfg.defaultZoom || 17);
         } else if (cfg.keepMapFocused === true && !focusBounds.contains(latlng)) {
@@ -1088,8 +1110,20 @@
         }
         resolve(latlng);
       }).catch(function (err) {
+        setRouteStatus("Impossible d'obtenir la position actuelle.", "error");
         reject(err);
       });
+    });
+  }
+
+  async function getCurrentPositionForRouting(options) {
+    var opts = options || {};
+    if (isCurrentPositionFresh(opts.maxAgeMs)) {
+      return state.currentPosition;
+    }
+    return locateUser({
+      forceFresh: true,
+      openPopup: opts.openPopup !== false
     });
   }
 
@@ -1285,9 +1319,9 @@
     setNavStatus("Guidage démarré.", "success");
     setNavProgress("En attente de mise à jour GPS...", null);
 
-    if (!state.currentPosition) {
+    if (!isCurrentPositionFresh(cfg.currentPositionMaxAgeMs || 45000)) {
       try {
-        await locateUser();
+        await locateUser({ forceFresh: true, openPopup: false });
       } catch (_) {
         // watchPosition ci-dessous continuera à tenter les lectures GPS
       }
@@ -1411,7 +1445,10 @@
 
   async function drawRouteTo(targetLatLng) {
     try {
-      var from = state.currentPosition || await locateUser();
+      var from = await getCurrentPositionForRouting({
+        maxAgeMs: cfg.currentPositionMaxAgeMs || 45000,
+        openPopup: false
+      });
       var routeResult = await drawRouteBetween(from, targetLatLng, {
         profile: getSelectedRouteProfile(),
         preference: getSelectedRoutePreference(),
@@ -1448,7 +1485,10 @@
       }
 
       if (fromValue === "__CURRENT__") {
-        fromPoint = state.currentPosition || await locateUser();
+        fromPoint = await getCurrentPositionForRouting({
+          maxAgeMs: cfg.currentPositionMaxAgeMs || 45000,
+          openPopup: false
+        });
       } else {
         var fromPoi = getPoiById(fromValue);
         if (!fromPoi) {
@@ -1459,7 +1499,10 @@
       }
 
       if (toValue === "__CURRENT__") {
-        toPoint = state.currentPosition || await locateUser();
+        toPoint = await getCurrentPositionForRouting({
+          maxAgeMs: cfg.currentPositionMaxAgeMs || 45000,
+          openPopup: false
+        });
       } else {
         var toPoi = getPoiById(toValue);
         if (!toPoi) {
@@ -1547,7 +1590,7 @@
     dom.btnSearch.addEventListener("click", runSearch);
     dom.btnResetSearch.addEventListener("click", clearSearch);
     dom.btnLocate.addEventListener("click", function () {
-      locateUser().catch(function () {
+      locateUser({ forceFresh: true, openPopup: true }).catch(function () {
         setRouteStatus("Impossible d'obtenir la position.", "error");
       });
       if (isMobileLayout()) {

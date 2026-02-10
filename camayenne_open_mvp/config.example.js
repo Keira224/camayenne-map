@@ -25,6 +25,7 @@ window.CAMAYENNE_CONFIG = {
   gpsJumpProtectMaxAgeMs: 300000,
   gpsJumpRejectDistanceMeters: 220,
   gpsJumpRejectAccuracyMeters: 60,
+  currentPositionMaxAgeMs: 45000,
   navAutoStart: false,
   navFollowUser: true,
   navArrivalDistanceMeters: 20,
