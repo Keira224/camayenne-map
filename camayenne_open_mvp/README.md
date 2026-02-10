@@ -155,3 +155,24 @@ npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 3. Marche: la position et la distance restante se mettent à jour automatiquement.
 4. Si tu sors du trajet, l'app recalcule un meilleur chemin.
 5. Clique `Arrêter guidage` pour stopper le suivi.
+
+## 13) Back-office administration
+
+Fichiers:
+- `admin.html`
+- `admin.css`
+- `admin.js`
+- `supabase/admin_backoffice.sql`
+
+Activation:
+1. Dans Supabase > SQL Editor, exécute `supabase/admin_backoffice.sql`.
+2. Crée un utilisateur admin dans Supabase Auth (email/mot de passe).
+3. Promeut cet utilisateur en admin avec le bloc SQL commenté à la fin de `admin_backoffice.sql`.
+4. Ouvre `.../camayenne_open_mvp/admin.html`.
+5. Connecte-toi avec le compte admin.
+
+Fonctions disponibles:
+- Voir les statistiques (POI, signalements, nouveaux signalements)
+- Changer le statut des signalements
+- Supprimer des signalements
+- Ajouter / modifier / supprimer des POI

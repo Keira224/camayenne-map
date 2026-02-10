@@ -39,6 +39,7 @@
 
   var poiLayer = L.layerGroup().addTo(map);
   var reportsLayer = L.layerGroup().addTo(map);
+  var searchFocusLayer = L.layerGroup().addTo(map);
   var sketchLayer = L.layerGroup().addTo(map);
   var userLayer = L.layerGroup().addTo(map);
   var routeLayer = L.layerGroup().addTo(map);
@@ -748,9 +749,67 @@
     });
   }
 
+  function focusResultOnMap(row) {
+    if (!row || row.latitude == null || row.longitude == null) return;
+    var lat = Number(row.latitude);
+    var lon = Number(row.longitude);
+    var latlng = L.latLng(lat, lon);
+
+    searchFocusLayer.clearLayers();
+    var marker = L.marker(latlng, { icon: poiIcon() }).addTo(searchFocusLayer);
+    L.circleMarker(latlng, {
+      radius: 15,
+      color: "#1f6f8b",
+      weight: 2,
+      fillColor: "#1f6f8b",
+      fillOpacity: 0.08
+    }).addTo(searchFocusLayer);
+
+    map.setView(latlng, cfg.searchResultZoom || 18);
+    marker.bindPopup(
+      "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
+      "<br>" + escapeHtml(row.category || "") +
+      "<br>" + escapeHtml(row.address || "")
+    ).openPopup();
+  }
+
+  function showSearchMarkers(rows) {
+    searchFocusLayer.clearLayers();
+    if (!rows || !rows.length) return;
+
+    if (rows.length === 1) {
+      focusResultOnMap(rows[0]);
+      return;
+    }
+
+    var points = [];
+    rows.forEach(function (row) {
+      if (row.latitude == null || row.longitude == null) return;
+      var lat = Number(row.latitude);
+      var lon = Number(row.longitude);
+      var latlng = L.latLng(lat, lon);
+      points.push(latlng);
+      L.marker(latlng, { icon: poiIcon() })
+        .bindPopup(
+          "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
+          "<br>" + escapeHtml(row.category || "") +
+          "<br>" + escapeHtml(row.address || "")
+        )
+        .addTo(searchFocusLayer);
+    });
+
+    if (points.length) {
+      map.fitBounds(L.latLngBounds(points), {
+        padding: [24, 24],
+        maxZoom: cfg.searchResultZoom || 17
+      });
+    }
+  }
+
   function renderSearchResults(rows) {
     dom.searchResults.innerHTML = "";
     if (!rows.length) {
+      searchFocusLayer.clearLayers();
       dom.searchResults.innerHTML = '<div class="result-item">Aucun résultat.</div>';
       return;
     }
@@ -765,7 +824,7 @@
       var zoomButton = item.querySelector("[data-action='zoom']");
       var routeButton = item.querySelector("[data-action='route']");
       zoomButton.addEventListener("click", function () {
-        map.setView([Number(row.latitude), Number(row.longitude)], cfg.defaultZoom || 17);
+        focusResultOnMap(row);
       });
       routeButton.addEventListener("click", function () {
         drawRouteTo(L.latLng(Number(row.latitude), Number(row.longitude)));
@@ -783,6 +842,7 @@
       return byName && byCategory;
     });
     renderSearchResults(rows);
+    showSearchMarkers(rows);
     setStatus(dom.searchStatus, rows.length + " résultat(s).", "success");
   }
 
@@ -790,6 +850,7 @@
     dom.searchName.value = "";
     dom.searchCategory.value = "";
     dom.searchResults.innerHTML = "";
+    searchFocusLayer.clearLayers();
     setStatus(dom.searchStatus, "", null);
   }
 

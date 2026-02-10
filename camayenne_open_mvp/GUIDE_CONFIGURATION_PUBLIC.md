@@ -209,3 +209,25 @@ Si ça bloque, envoie ces 4 éléments:
 2. Capture Supabase Functions (deploy status)
 3. Résultat exécution `hardening_public.sql`
 4. URL publique GitHub Pages
+
+---
+
+## 12) Activer le back-office admin
+
+1. Exécute le script SQL:
+- `camayenne_open_mvp/supabase/admin_backoffice.sql`
+
+2. Crée un utilisateur dans Supabase Auth:
+- Dashboard > Authentication > Users > Add user
+
+3. Passe ce compte en admin (SQL Editor):
+- Utilise le bloc commenté en bas de `admin_backoffice.sql`
+- Remplace l'email par ton email admin
+
+4. Ouvre:
+- `https://keira224.github.io/camayenne-map/camayenne_open_mvp/admin.html`
+
+5. Connecte-toi et vérifie:
+- chargement des stats
+- changement statut signalement
+- ajout/modification/suppression POI

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camayenne Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <h1>Back-office Camayenne</h1>
+        <p>Gestion POI, signalements et modération</p>
+      </div>
+      <div class="header-actions">
+        <a class="btn btn-secondary" href="./index.html">Retour carte publique</a>
+        <button id="btnSignOut" class="btn btn-secondary" type="button" hidden>Déconnexion</button>
+      </div>
+    </header>
+
+    <section id="authCard" class="card">
+      <h2>Connexion administrateur</h2>
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" placeholder="admin@exemple.com">
+      <label for="loginPassword">Mot de passe</label>
+      <input id="loginPassword" type="password" placeholder="********">
+      <button id="btnSignIn" class="btn btn-primary" type="button">Se connecter</button>
+      <div id="authStatus" class="status"></div>
+    </section>
+
+    <section id="adminApp" hidden>
+      <div class="stats">
+        <article class="card stat-card">
+          <h3>POI</h3>
+          <div id="statPoi" class="stat-value">-</div>
+        </article>
+        <article class="card stat-card">
+          <h3>Signalements</h3>
+          <div id="statReports" class="stat-value">-</div>
+        </article>
+        <article class="card stat-card">
+          <h3>Nouveaux signalements</h3>
+          <div id="statNewReports" class="stat-value">-</div>
+        </article>
+      </div>
+
+      <div class="grid-two">
+        <section class="card">
+          <div class="section-head">
+            <h2>Signalements</h2>
+            <div class="head-tools">
+              <select id="reportFilterStatus">
+                <option value="">Tous</option>
+              </select>
+              <button id="btnReloadReports" class="btn btn-secondary" type="button">Actualiser</button>
+            </div>
+          </div>
+          <div id="reportsStatus" class="status"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Titre</th>
+                  <th>Type</th>
+                  <th>Statut</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="reportsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 id="poiFormTitle">Ajouter un POI</h2>
+          <input id="poiEditId" type="hidden">
+          <label for="poiName">Nom</label>
+          <input id="poiName" type="text" placeholder="Ex: Mairie de Camayenne">
+          <label for="poiCategory">Catégorie</label>
+          <select id="poiCategory"></select>
+          <label for="poiAddress">Adresse</label>
+          <input id="poiAddress" type="text" placeholder="Adresse ou repère">
+          <label for="poiPhone">Téléphone</label>
+          <input id="poiPhone" type="text" placeholder="+224 ...">
+          <label for="poiLatitude">Latitude</label>
+          <input id="poiLatitude" type="number" step="0.000001" placeholder="9.532296">
+          <label for="poiLongitude">Longitude</label>
+          <input id="poiLongitude" type="number" step="0.000001" placeholder="-13.688565">
+          <label for="poiStatus">Statut</label>
+          <select id="poiStatus">
+            <option value="ACTIF">ACTIF</option>
+            <option value="INACTIF">INACTIF</option>
+          </select>
+          <label for="poiDescription">Description</label>
+          <textarea id="poiDescription" rows="3" placeholder="Description"></textarea>
+          <div class="row">
+            <button id="btnSavePoi" class="btn btn-primary" type="button">Enregistrer POI</button>
+            <button id="btnResetPoiForm" class="btn btn-secondary" type="button">Réinitialiser</button>
+          </div>
+          <div id="poiFormStatus" class="status"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Liste des POI</h2>
+          <div class="head-tools">
+            <input id="poiSearchText" type="text" placeholder="Rechercher un nom...">
+            <button id="btnReloadPoi" class="btn btn-secondary" type="button">Actualiser</button>
+          </div>
+        </div>
+        <div id="poiListStatus" class="status"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nom</th>
+                <th>Catégorie</th>
+                <th>Coordonnées</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="poiTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./admin.js"></script>
+</body>
+</html>
