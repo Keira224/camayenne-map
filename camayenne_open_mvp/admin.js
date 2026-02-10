@@ -9,6 +9,8 @@
     client: null,
     user: null,
     profile: null,
+    role: null,
+    isAdmin: false,
     poiRows: [],
     reportRows: [],
     poiPhotoObjectUrl: null,
@@ -218,6 +220,9 @@
     }
 
     rows.forEach(function (row) {
+      var deleteBtn = app.isAdmin
+        ? "<button class='btn btn-danger' type='button' data-action='report-delete' data-id='" + row.id + "'>Supprimer</button>"
+        : "";
       var tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + row.id + "</td>" +
@@ -233,7 +238,7 @@
         "<td>" + fmtDate(row.created_at) + "</td>" +
         "<td class='actions'>" +
         "<button class='btn btn-secondary' type='button' data-action='report-save' data-id='" + row.id + "'>Sauver</button> " +
-        "<button class='btn btn-danger' type='button' data-action='report-delete' data-id='" + row.id + "'>Supprimer</button>" +
+        deleteBtn +
         "</td>";
       dom.reportsTableBody.appendChild(tr);
     });
@@ -327,6 +332,9 @@
     }
 
     rows.forEach(function (row) {
+      var deleteBtn = app.isAdmin
+        ? "<button class='btn btn-danger' type='button' data-action='poi-delete' data-id='" + row.id + "'>Supprimer</button>"
+        : "";
       var tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + row.id + "</td>" +
@@ -336,7 +344,7 @@
         "<td>" + escapeHtml(row.status || "") + (row.photo_url ? "<br><small>Photo: oui</small>" : "<br><small>Photo: non</small>") + "</td>" +
         "<td class='actions'>" +
         "<button class='btn btn-secondary' type='button' data-action='poi-edit' data-id='" + row.id + "'>Modifier</button> " +
-        "<button class='btn btn-danger' type='button' data-action='poi-delete' data-id='" + row.id + "'>Supprimer</button>" +
+        deleteBtn +
         "</td>";
       dom.poiTableBody.appendChild(tr);
     });
@@ -521,6 +529,8 @@
   async function handleSession(session) {
     app.user = session && session.user ? session.user : null;
     app.profile = null;
+    app.role = null;
+    app.isAdmin = false;
 
     if (!app.user) {
       applyAuthUi(false, false);
@@ -536,14 +546,19 @@
       return;
     }
 
-    if (!app.profile || app.profile.role !== "admin") {
+    var role = app.profile && app.profile.role ? String(app.profile.role) : "";
+    var isAllowed = role === "admin" || role === "agent";
+    app.role = role;
+    app.isAdmin = role === "admin";
+
+    if (!isAllowed) {
       applyAuthUi(true, false);
-      setStatus(dom.authStatus, "Accès refusé: ce compte n'est pas admin.", "error");
+      setStatus(dom.authStatus, "Accès refusé: ce compte n'est ni admin ni agent.", "error");
       return;
     }
 
     applyAuthUi(true, true);
-    setStatus(dom.authStatus, "Connecté en admin: " + (app.user.email || ""), "success");
+    setStatus(dom.authStatus, "Connecté en " + role + ": " + (app.user.email || ""), "success");
     await loadAdminData();
   }
 
@@ -593,6 +608,10 @@
       }
 
       if (action === "report-delete") {
+        if (!app.isAdmin) {
+          setStatus(dom.reportsStatus, "Suppression réservée aux admins.", "error");
+          return;
+        }
         if (!window.confirm("Supprimer le signalement #" + reportId + " ?")) return;
         deleteReport(reportId).then(function () {
           setStatus(dom.reportsStatus, "Signalement supprimé.", "success");
@@ -678,6 +697,10 @@
       }
 
       if (action === "poi-delete") {
+        if (!app.isAdmin) {
+          setStatus(dom.poiListStatus, "Suppression réservée aux admins.", "error");
+          return;
+        }
         if (!window.confirm("Supprimer le POI #" + poiId + " ?")) return;
         deletePoi(poiId, row.photo_path).then(function () {
           setStatus(dom.poiListStatus, "POI supprimé.", "success");

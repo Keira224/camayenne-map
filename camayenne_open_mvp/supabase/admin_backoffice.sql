@@ -62,6 +62,21 @@ $$;
 
 grant execute on function public.is_admin() to authenticated;
 
+create or replace function public.is_operator()
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.user_id = auth.uid()
+      and p.role in ('admin', 'agent')
+  );
+$$;
+
+grant execute on function public.is_operator() to authenticated;
+
 -- Storage bucket pour les photos de POI
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -75,6 +90,9 @@ on conflict (id) do nothing;
 
 drop policy if exists "poi_photos_read_anon" on storage.objects;
 drop policy if exists "poi_photos_read_authenticated" on storage.objects;
+drop policy if exists "poi_photos_insert_operator" on storage.objects;
+drop policy if exists "poi_photos_update_operator" on storage.objects;
+drop policy if exists "poi_photos_delete_operator" on storage.objects;
 drop policy if exists "poi_photos_insert_admin" on storage.objects;
 drop policy if exists "poi_photos_update_admin" on storage.objects;
 drop policy if exists "poi_photos_delete_admin" on storage.objects;
@@ -89,32 +107,32 @@ for select
 to authenticated
 using (bucket_id = 'poi-photos');
 
-create policy "poi_photos_insert_admin" on storage.objects
+create policy "poi_photos_insert_operator" on storage.objects
 for insert
 to authenticated
 with check (
   bucket_id = 'poi-photos'
-  and public.is_admin()
+  and public.is_operator()
 );
 
-create policy "poi_photos_update_admin" on storage.objects
+create policy "poi_photos_update_operator" on storage.objects
 for update
 to authenticated
 using (
   bucket_id = 'poi-photos'
-  and public.is_admin()
+  and public.is_operator()
 )
 with check (
   bucket_id = 'poi-photos'
-  and public.is_admin()
+  and public.is_operator()
 );
 
-create policy "poi_photos_delete_admin" on storage.objects
+create policy "poi_photos_delete_operator" on storage.objects
 for delete
 to authenticated
 using (
   bucket_id = 'poi-photos'
-  and public.is_admin()
+  and public.is_operator()
 );
 
 -- Permissions de lecture pour les comptes connectés (nécessaire pour le back-office)
@@ -135,39 +153,43 @@ using (true);
 drop policy if exists "poi_insert_authenticated" on public.poi;
 drop policy if exists "reports_insert_authenticated" on public.reports;
 
+drop policy if exists "poi_insert_operator" on public.poi;
+drop policy if exists "poi_update_operator" on public.poi;
+drop policy if exists "poi_delete_admin" on public.poi;
+drop policy if exists "reports_insert_operator" on public.reports;
+drop policy if exists "reports_update_operator" on public.reports;
+drop policy if exists "reports_delete_admin" on public.reports;
 drop policy if exists "poi_insert_admin" on public.poi;
 drop policy if exists "poi_update_admin" on public.poi;
-drop policy if exists "poi_delete_admin" on public.poi;
 drop policy if exists "reports_insert_admin" on public.reports;
 drop policy if exists "reports_update_admin" on public.reports;
-drop policy if exists "reports_delete_admin" on public.reports;
 
-create policy "poi_insert_admin" on public.poi
+create policy "poi_insert_operator" on public.poi
 for insert
 to authenticated
-with check (public.is_admin());
+with check (public.is_operator());
 
-create policy "poi_update_admin" on public.poi
+create policy "poi_update_operator" on public.poi
 for update
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (public.is_operator())
+with check (public.is_operator());
 
 create policy "poi_delete_admin" on public.poi
 for delete
 to authenticated
 using (public.is_admin());
 
-create policy "reports_insert_admin" on public.reports
+create policy "reports_insert_operator" on public.reports
 for insert
 to authenticated
-with check (public.is_admin());
+with check (public.is_operator());
 
-create policy "reports_update_admin" on public.reports
+create policy "reports_update_operator" on public.reports
 for update
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (public.is_operator())
+with check (public.is_operator());
 
 create policy "reports_delete_admin" on public.reports
 for delete
@@ -180,5 +202,14 @@ using (public.is_admin());
 -- select id, 'Admin Camayenne', 'admin'
 -- from auth.users
 -- where email = 'admin@camayenne.gn'
+-- on conflict (user_id)
+-- do update set role = excluded.role, full_name = excluded.full_name;
+
+-- Utilitaire: promotion d'un utilisateur en agent
+-- Remplace agent@camayenne.gn puis exécute ce bloc
+-- insert into public.profiles(user_id, full_name, role)
+-- select id, 'Agent Camayenne', 'agent'
+-- from auth.users
+-- where email = 'agent@camayenne.gn'
 -- on conflict (user_id)
 -- do update set role = excluded.role, full_name = excluded.full_name;

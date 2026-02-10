@@ -220,9 +220,9 @@ Si ça bloque, envoie ces 4 éléments:
 2. Crée un utilisateur dans Supabase Auth:
 - Dashboard > Authentication > Users > Add user
 
-3. Passe ce compte en admin (SQL Editor):
-- Utilise le bloc commenté en bas de `admin_backoffice.sql`
-- Remplace l'email par ton email admin
+3. Passe ce compte en admin ou agent (SQL Editor):
+- Utilise les blocs commentés en bas de `admin_backoffice.sql`
+- Remplace l'email par ton email admin/agent
 
 4. Ouvre:
 - `https://keira224.github.io/camayenne-map/camayenne_open_mvp/admin.html`
@@ -232,6 +232,10 @@ Si ça bloque, envoie ces 4 éléments:
 - changement statut signalement
 - ajout/modification/suppression POI
 - upload photo POI depuis mobile (`capture="environment"`)
+
+Règles de rôles:
+- `admin`: ajout/modification/suppression
+- `agent`: ajout/modification (pas de suppression)
 
 6. Si la colonne photo n'existe pas encore:
 - exécute aussi `camayenne_open_mvp/supabase/schema.sql` (ajout `photo_url`, `photo_path`, `photo_taken_at`)

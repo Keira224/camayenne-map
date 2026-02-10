@@ -167,14 +167,15 @@ Fichiers:
 
 Activation:
 1. Dans Supabase > SQL Editor, exécute `supabase/admin_backoffice.sql`.
-2. Crée un utilisateur admin dans Supabase Auth (email/mot de passe).
-3. Promeut cet utilisateur en admin avec le bloc SQL commenté à la fin de `admin_backoffice.sql`.
+2. Crée un utilisateur admin ou agent dans Supabase Auth (email/mot de passe).
+3. Promeut cet utilisateur en admin/agent avec les blocs SQL commentés à la fin de `admin_backoffice.sql`.
 4. Ouvre `.../camayenne_open_mvp/admin.html`.
-5. Connecte-toi avec le compte admin.
+5. Connecte-toi avec le compte admin/agent.
 
 Fonctions disponibles:
 - Voir les statistiques (POI, signalements, nouveaux signalements)
 - Changer le statut des signalements
-- Supprimer des signalements
-- Ajouter / modifier / supprimer des POI
+- Supprimer des signalements (admin)
+- Ajouter / modifier des POI (admin + agent)
+- Supprimer des POI (admin)
 - Ajouter/supprimer une photo par POI (upload Supabase Storage)
