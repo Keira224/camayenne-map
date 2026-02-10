@@ -17,6 +17,14 @@ window.CAMAYENNE_CONFIG = {
   gpsMaxWaitMs: 18000,
   gpsDesiredAccuracyMeters: 35,
   gpsWarnAboveMeters: 120,
+  publicMode: true,
+  allowPoiSubmission: false,
+  useSecureFunctions: true,
+  functionsBaseUrl: "https://YOUR_PROJECT.supabase.co/functions/v1",
+  functionNames: {
+    submitReport: "submit-report",
+    route: "route"
+  },
 
   // Remplace par ton projet Supabase
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",
@@ -27,7 +35,7 @@ window.CAMAYENNE_CONFIG = {
   },
 
   // Remplace par ta clé openrouteservice
-  openRouteServiceApiKey: "YOUR_OPENROUTESERVICE_KEY",
+  openRouteServiceApiKey: "",
   routingProfile: "driving-car",
   routingPreference: "shortest",
   routeAvoidMainRoads: true,

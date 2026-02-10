@@ -19,8 +19,12 @@ create table if not exists public.reports (
   description text,
   latitude double precision not null,
   longitude double precision not null,
+  source_hash text,
   created_at timestamptz default now()
 );
+
+create index if not exists idx_reports_source_hash_created_at
+on public.reports (source_hash, created_at desc);
 
 alter table public.poi enable row level security;
 alter table public.reports enable row level security;
@@ -29,15 +33,17 @@ drop policy if exists "poi_select_public" on public.poi;
 drop policy if exists "poi_insert_public" on public.poi;
 drop policy if exists "reports_select_public" on public.reports;
 drop policy if exists "reports_insert_public" on public.reports;
+drop policy if exists "poi_insert_authenticated" on public.poi;
+drop policy if exists "reports_insert_authenticated" on public.reports;
 
 create policy "poi_select_public" on public.poi
 for select
 to anon
 using (true);
 
-create policy "poi_insert_public" on public.poi
+create policy "poi_insert_authenticated" on public.poi
 for insert
-to anon
+to authenticated
 with check (true);
 
 create policy "reports_select_public" on public.reports
@@ -45,7 +51,7 @@ for select
 to anon
 using (true);
 
-create policy "reports_insert_public" on public.reports
+create policy "reports_insert_authenticated" on public.reports
 for insert
-to anon
+to authenticated
 with check (true);

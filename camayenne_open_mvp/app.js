@@ -64,6 +64,8 @@
   var dom = {
     tabs: document.querySelectorAll(".tab"),
     tabContents: document.querySelectorAll(".tab-content"),
+    tabAddButton: document.querySelector(".tab[data-tab='add']"),
+    tabAddPanel: document.getElementById("tab-add"),
     btnLocate: document.getElementById("btnLocate"),
     btnClearRoute: document.getElementById("btnClearRoute"),
     btnFocusArea: document.getElementById("btnFocusArea"),
@@ -371,6 +373,10 @@
     return !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
   }
 
+  function getFunctionsReady() {
+    return !!(cfg.functionsBaseUrl && cfg.supabaseAnonKey && cfg.functionNames);
+  }
+
   async function supabaseFetch(path, options) {
     var url = cfg.supabaseUrl.replace(/\/+$/, "") + "/rest/v1/" + path;
     var headers = Object.assign({
@@ -384,6 +390,27 @@
       throw new Error("Supabase HTTP " + res.status + " - " + txt);
     }
     if (res.status === 204) return null;
+    return res.json();
+  }
+
+  async function functionFetch(functionName, payload) {
+    if (!getFunctionsReady()) {
+      throw new Error("Fonctions sécurisées non configurées.");
+    }
+    var fnUrl = cfg.functionsBaseUrl.replace(/\/+$/, "") + "/" + functionName;
+    var res = await fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.supabaseAnonKey,
+        Authorization: "Bearer " + cfg.supabaseAnonKey
+      },
+      body: JSON.stringify(payload || {})
+    });
+    if (!res.ok) {
+      var txt = await res.text();
+      throw new Error("Function HTTP " + res.status + " - " + txt);
+    }
     return res.json();
   }
 
@@ -570,6 +597,10 @@
   }
 
   async function submitPoi() {
+    if (cfg.allowPoiSubmission === false) {
+      setStatus(dom.poiStatus, "Ajout de lieux désactivé en mode public.", "error");
+      return;
+    }
     if (!getSupabaseReady()) {
       setStatus(dom.poiStatus, "Configure d'abord Supabase (config.js).", "error");
       return;
@@ -633,7 +664,6 @@
       setStatus(dom.reportStatusMessage, "Le titre est obligatoire.", "error");
       return;
     }
-    var table = cfg.tables && cfg.tables.reports ? cfg.tables.reports : "reports";
     var payload = {
       title: title,
       type: dom.reportType.value,
@@ -643,14 +673,20 @@
       longitude: state.selectedReportPoint.lng
     };
     try {
-      await supabaseFetch(table, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Prefer: "return=minimal"
-        },
-        body: JSON.stringify(payload)
-      });
+      if (cfg.useSecureFunctions) {
+        var submitReportFn = (cfg.functionNames && cfg.functionNames.submitReport) || "submit-report";
+        await functionFetch(submitReportFn, payload);
+      } else {
+        var table = cfg.tables && cfg.tables.reports ? cfg.tables.reports : "reports";
+        await supabaseFetch(table, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify(payload)
+        });
+      }
       setStatus(dom.reportStatusMessage, "Signalement envoyé.", "success");
       clearReportForm();
       await loadReports();
@@ -692,8 +728,12 @@
   }
 
   async function drawRouteBetween(fromLatLng, targetLatLng, options) {
-    if (!cfg.openRouteServiceApiKey) {
+    if (!cfg.useSecureFunctions && !cfg.openRouteServiceApiKey) {
       setRouteStatus("Ajoute la clé openrouteservice dans config.js.", "error");
+      return;
+    }
+    if (cfg.useSecureFunctions && !getFunctionsReady()) {
+      setRouteStatus("Configure functionsBaseUrl + functionNames dans config.js.", "error");
       return;
     }
     var from = fromLatLng;
@@ -707,7 +747,6 @@
       from = L.latLng(center.lat, center.lon);
     }
 
-    var url = "https://api.openrouteservice.org/v2/directions/" + profile + "/geojson";
     var coordinates = [
       [from.lng, from.lat],
       [targetLatLng.lng, targetLatLng.lat]
@@ -717,25 +756,33 @@
     }
     var payload = {
       coordinates: coordinates,
-      preference: preference
+      preference: preference,
+      profile: profile
     };
     if (avoidMainRoads && profile === "driving-car") {
       payload.options = {
         avoid_features: ["highways", "tollways"]
       };
     }
-    var res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: cfg.openRouteServiceApiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      throw new Error("openrouteservice HTTP " + res.status);
+    var data;
+    if (cfg.useSecureFunctions) {
+      var routeFn = (cfg.functionNames && cfg.functionNames.route) || "route";
+      data = await functionFetch(routeFn, payload);
+    } else {
+      var url = "https://api.openrouteservice.org/v2/directions/" + profile + "/geojson";
+      var res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: cfg.openRouteServiceApiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        throw new Error("openrouteservice HTTP " + res.status);
+      }
+      data = await res.json();
     }
-    var data = await res.json();
     var coords = (((data || {}).features || [])[0] || {}).geometry;
     if (!coords || !coords.coordinates) {
       throw new Error("Géométrie d'itinéraire absente.");
@@ -848,6 +895,19 @@
       .replace(/'/g, "&#039;");
   }
 
+  function applyPublicModeUi() {
+    if (cfg.allowPoiSubmission !== false) return;
+    if (dom.tabAddButton) {
+      dom.tabAddButton.style.display = "none";
+    }
+    if (dom.tabAddPanel) {
+      dom.tabAddPanel.style.display = "none";
+    }
+    if (dom.tabs && dom.tabs.length) {
+      activateTab("search");
+    }
+  }
+
   function wireEvents() {
     dom.tabs.forEach(function (tab) {
       tab.addEventListener("click", function () {
@@ -932,6 +992,7 @@
     if (dom.routeAvoidMainRoads) {
       dom.routeAvoidMainRoads.checked = !!cfg.routeAvoidMainRoads;
     }
+    applyPublicModeUi();
 
     wireEvents();
     if (cfg.lockToFocusBounds !== false) {

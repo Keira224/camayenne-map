@@ -24,7 +24,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 
 1. Crée un compte sur https://openrouteservice.org
 2. Crée une clé API
-3. Garde cette clé pour `config.js`
+3. Garde cette clé pour le secret Supabase `ORS_API_KEY`
 
 ## 3) Configurer le projet
 
@@ -32,7 +32,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 2. Renseigne:
 - `supabaseUrl`
 - `supabaseAnonKey`
-- `openRouteServiceApiKey`
+- `functionsBaseUrl`
 3. Optionnel:
 - `defaultCenter`
 - `defaultZoom`
@@ -82,9 +82,10 @@ Tu peux déployer ce dossier directement sur:
 
 ## 7) Notes importantes
 
-1. Le mode actuel autorise l'insertion anonyme via RLS (`anon`) pour accélérer le MVP.
-2. En production, ajoute captcha, anti-spam et modération.
-3. Pour gros trafic, n'utilise pas le serveur de tuiles OSM public en direct.
+1. En mode public sécurisé, l'ajout direct depuis `anon` est bloqué via RLS.
+2. Les signalements passent par la function `submit-report` avec anti-spam basique.
+3. Le calcul d'itinéraire passe par la function `route` (clé ORS cachée côté serveur).
+4. Pour gros trafic, n'utilise pas le serveur de tuiles OSM public en direct.
 
 ## 8) Focus Camayenne
 
@@ -116,3 +117,26 @@ Paramètres ajustables dans `config.js`:
 - `gpsMaxWaitMs`
 - `gpsDesiredAccuracyMeters`
 - `gpsWarnAboveMeters`
+
+## 11) Déploiement sécurisé Supabase Functions
+
+1. Installer Supabase CLI:
+```powershell
+npm install -g supabase
+```
+2. Connecter le projet:
+```powershell
+supabase login
+supabase link --project-ref <TON_PROJECT_REF>
+```
+3. Déployer les functions:
+```powershell
+supabase functions deploy submit-report
+supabase functions deploy route
+```
+4. Définir les secrets:
+```powershell
+supabase secrets set ORS_API_KEY=<TA_CLE_ORS>
+```
+5. Appliquer le durcissement RLS:
+- Exécuter `supabase/hardening_public.sql` dans SQL Editor.

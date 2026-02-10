@@ -1,0 +1,27 @@
+-- Durcissement mode public
+-- 1) Les citoyens peuvent lire les POI et signalements
+-- 2) Les insertions directes anon sont bloquées
+-- 3) Les signalements passent par une Edge Function sécurisée
+
+alter table public.poi enable row level security;
+alter table public.reports enable row level security;
+alter table public.reports add column if not exists source_hash text;
+
+create index if not exists idx_reports_source_hash_created_at
+on public.reports (source_hash, created_at desc);
+
+drop policy if exists "poi_insert_public" on public.poi;
+drop policy if exists "reports_insert_public" on public.reports;
+
+drop policy if exists "poi_insert_authenticated" on public.poi;
+drop policy if exists "reports_insert_authenticated" on public.reports;
+
+create policy "poi_insert_authenticated" on public.poi
+for insert
+to authenticated
+with check (true);
+
+create policy "reports_insert_authenticated" on public.reports
+for insert
+to authenticated
+with check (true);
