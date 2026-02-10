@@ -48,9 +48,26 @@
     reports: [],
     currentPosition: null,
     currentAccuracy: null,
+    currentPositionAt: null,
     pickMode: null,
     selectedPoiPoint: null,
-    selectedReportPoint: null
+    selectedReportPoint: null,
+    routeContext: null,
+    nav: {
+      active: false,
+      watchId: null,
+      rerouteInFlight: false,
+      lastRerouteAt: 0,
+      destination: null,
+      routeLatLngs: [],
+      segmentLengths: [],
+      totalDistance: null,
+      totalDuration: null,
+      profile: null,
+      preference: null,
+      avoidMainRoads: false,
+      roundTrip: false
+    }
   };
 
   var poiCategories = cfg.poiCategories || [
@@ -87,6 +104,10 @@
     btnRouteBetween: document.getElementById("btnRouteBetween"),
     routeStatus: document.getElementById("routeStatus"),
     routeMetrics: document.getElementById("routeMetrics"),
+    btnStartNav: document.getElementById("btnStartNav"),
+    btnStopNav: document.getElementById("btnStopNav"),
+    navStatus: document.getElementById("navStatus"),
+    navProgress: document.getElementById("navProgress"),
     poiName: document.getElementById("poiName"),
     poiCategory: document.getElementById("poiCategory"),
     poiAddress: document.getElementById("poiAddress"),
@@ -142,6 +163,14 @@
     if (!message) {
       setStatus(dom.routeMetrics, "", null);
     }
+  }
+
+  function setNavStatus(message, level) {
+    setStatus(dom.navStatus, message, level);
+  }
+
+  function setNavProgress(message, level) {
+    setStatus(dom.navProgress, message, level);
   }
 
   function setCoord(node, latlng) {
@@ -279,7 +308,14 @@
       " | Trajet: " + typeText + rt;
   }
 
-  function drawUserLocation(latlng, accuracyMeters) {
+  function updateNavigationButtons() {
+    if (!dom.btnStartNav || !dom.btnStopNav) return;
+    dom.btnStartNav.disabled = !state.routeContext || state.nav.active;
+    dom.btnStopNav.disabled = !state.nav.active;
+  }
+
+  function drawUserLocation(latlng, accuracyMeters, options) {
+    var opts = options || {};
     userLayer.clearLayers();
     var marker = L.circleMarker(latlng, {
       radius: 8,
@@ -297,10 +333,183 @@
         fillColor: "#0f8b6d",
         fillOpacity: 0.08
       }).addTo(userLayer);
-      marker.bindPopup("Vous êtes ici (précision ±" + Math.round(accuracyMeters) + " m)").openPopup();
+      marker.bindPopup("Vous êtes ici (précision ±" + Math.round(accuracyMeters) + " m)");
     } else {
-      marker.bindPopup("Vous êtes ici").openPopup();
+      marker.bindPopup("Vous êtes ici");
     }
+    if (opts.openPopup === true) {
+      marker.openPopup();
+    }
+  }
+
+  function toRad(deg) {
+    return deg * Math.PI / 180;
+  }
+
+  function distanceMeters(a, b) {
+    var R = 6371000;
+    var dLat = toRad(b.lat - a.lat);
+    var dLon = toRad(b.lng - a.lng);
+    var lat1 = toRad(a.lat);
+    var lat2 = toRad(b.lat);
+    var sinLat = Math.sin(dLat / 2);
+    var sinLon = Math.sin(dLon / 2);
+    var x = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
+    return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  function clampNumber(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function toLocalMeters(origin, latlng) {
+    var R = 6371000;
+    var x = toRad(latlng.lng - origin.lng) * Math.cos(toRad((latlng.lat + origin.lat) / 2)) * R;
+    var y = toRad(latlng.lat - origin.lat) * R;
+    return { x: x, y: y };
+  }
+
+  function projectPointOnSegmentMeters(point, a, b) {
+    var origin = {
+      lat: (point.lat + a.lat + b.lat) / 3,
+      lng: (point.lng + a.lng + b.lng) / 3
+    };
+    var p = toLocalMeters(origin, point);
+    var av = toLocalMeters(origin, a);
+    var bv = toLocalMeters(origin, b);
+
+    var abx = bv.x - av.x;
+    var aby = bv.y - av.y;
+    var apx = p.x - av.x;
+    var apy = p.y - av.y;
+    var ab2 = (abx * abx) + (aby * aby);
+    var t = ab2 > 0 ? ((apx * abx) + (apy * aby)) / ab2 : 0;
+    t = clampNumber(t, 0, 1);
+
+    var projX = av.x + (abx * t);
+    var projY = av.y + (aby * t);
+    var dx = p.x - projX;
+    var dy = p.y - projY;
+    return {
+      t: t,
+      distance: Math.sqrt((dx * dx) + (dy * dy))
+    };
+  }
+
+  function buildSegmentLengths(latlngs) {
+    var lengths = [];
+    if (!latlngs || latlngs.length < 2) return lengths;
+    for (var i = 0; i < latlngs.length - 1; i += 1) {
+      lengths.push(distanceMeters(latlngs[i], latlngs[i + 1]));
+    }
+    return lengths;
+  }
+
+  function sumValues(values) {
+    return (values || []).reduce(function (acc, value) {
+      return acc + value;
+    }, 0);
+  }
+
+  function computeRouteProgress(position, routeLatLngs, segmentLengths) {
+    if (!routeLatLngs || routeLatLngs.length < 2) return null;
+    var bestDistance = Infinity;
+    var bestIndex = 0;
+    var bestT = 0;
+
+    for (var i = 0; i < routeLatLngs.length - 1; i += 1) {
+      var proj = projectPointOnSegmentMeters(position, routeLatLngs[i], routeLatLngs[i + 1]);
+      if (proj.distance < bestDistance) {
+        bestDistance = proj.distance;
+        bestIndex = i;
+        bestT = proj.t;
+      }
+    }
+
+    var remaining = (1 - bestT) * (segmentLengths[bestIndex] || 0);
+    for (var j = bestIndex + 1; j < segmentLengths.length; j += 1) {
+      remaining += segmentLengths[j];
+    }
+
+    return {
+      distanceToRoute: bestDistance,
+      remainingDistance: Math.max(0, remaining),
+      segmentIndex: bestIndex,
+      segmentT: bestT
+    };
+  }
+
+  function updateCurrentPosition(latlng, accuracy, options) {
+    state.currentPosition = latlng;
+    state.currentAccuracy = accuracy;
+    state.currentPositionAt = Date.now();
+    drawUserLocation(latlng, accuracy, options);
+  }
+
+  function normalizeSample(pos) {
+    var acc = Number(pos && pos.coords && pos.coords.accuracy);
+    if (!isFinite(acc) || acc <= 0) acc = 9999;
+    return {
+      lat: Number(pos.coords.latitude),
+      lng: Number(pos.coords.longitude),
+      acc: acc,
+      ts: pos.timestamp || Date.now()
+    };
+  }
+
+  function weightedAverageSample(samples) {
+    if (!samples.length) return null;
+    var sumW = 0;
+    var sumLat = 0;
+    var sumLng = 0;
+    var bestAcc = samples[0].acc;
+
+    samples.forEach(function (s) {
+      var w = 1 / ((s.acc * s.acc) + 1);
+      sumW += w;
+      sumLat += s.lat * w;
+      sumLng += s.lng * w;
+      if (s.acc < bestAcc) bestAcc = s.acc;
+    });
+
+    if (sumW <= 0) return null;
+    return {
+      lat: sumLat / sumW,
+      lng: sumLng / sumW,
+      acc: bestAcc
+    };
+  }
+
+  function stabilizeSamples(samples) {
+    if (!samples.length) return null;
+
+    var maxSampleAcc = cfg.gpsMaxSampleAccuracyMeters || 250;
+    var outlierDistance = cfg.gpsOutlierDistanceMeters || 120;
+    var filteredByAcc = samples.filter(function (s) { return s.acc <= maxSampleAcc; });
+    if (!filteredByAcc.length) filteredByAcc = samples.slice();
+
+    var best = filteredByAcc.reduce(function (p, c) {
+      return c.acc < p.acc ? c : p;
+    }, filteredByAcc[0]);
+
+    var withoutOutliers = filteredByAcc.filter(function (s) {
+      var d = distanceMeters({ lat: best.lat, lng: best.lng }, { lat: s.lat, lng: s.lng });
+      return d <= outlierDistance || s.acc <= (cfg.gpsDesiredAccuracyMeters || 35);
+    });
+    if (!withoutOutliers.length) withoutOutliers = filteredByAcc.slice();
+
+    return weightedAverageSample(withoutOutliers);
+  }
+
+  function makePosition(lat, lng, acc) {
+    return {
+      coords: {
+        latitude: lat,
+        longitude: lng,
+        accuracy: acc
+      },
+      timestamp: Date.now()
+    };
   }
 
   function getBestPosition() {
@@ -310,10 +519,12 @@
         return;
       }
 
-      var maxWaitMs = cfg.gpsMaxWaitMs || 18000;
-      var desiredAccuracy = cfg.gpsDesiredAccuracyMeters || 35;
+      var maxWaitMs = cfg.gpsMaxWaitMs || 22000;
+      var desiredAccuracy = cfg.gpsDesiredAccuracyMeters || 25;
+      var minReadings = cfg.gpsMinReadings || 4;
+      var stabilityMeters = cfg.gpsStabilityMeters || 45;
       var watchId = null;
-      var best = null;
+      var samples = [];
       var done = false;
 
       function finish(successPos, err) {
@@ -329,35 +540,71 @@
         }
       }
 
+      function tryFinishFromSamples(force) {
+        if (!samples.length) return false;
+        var stable = stabilizeSamples(samples);
+        if (!stable) return false;
+        var bestAcc = samples.reduce(function (p, c) { return c.acc < p ? c.acc : p; }, samples[0].acc);
+        var farthest = 0;
+        samples.forEach(function (s) {
+          var d = distanceMeters({ lat: stable.lat, lng: stable.lng }, { lat: s.lat, lng: s.lng });
+          if (d > farthest) farthest = d;
+        });
+        var enoughSamples = samples.length >= minReadings;
+        var goodAccuracy = bestAcc <= desiredAccuracy;
+        var stableCluster = farthest <= stabilityMeters;
+
+        if (force || (enoughSamples && goodAccuracy && stableCluster)) {
+          finish(makePosition(stable.lat, stable.lng, bestAcc), null);
+          return true;
+        }
+        return false;
+      }
+
       var timeoutId = setTimeout(function () {
-        if (best) {
-          finish(best, null);
-        } else {
+        if (!tryFinishFromSamples(true)) {
           finish(null, new Error("Délai dépassé pour la géolocalisation."));
         }
       }, maxWaitMs);
 
       watchId = navigator.geolocation.watchPosition(function (pos) {
-        if (!best || (pos.coords && pos.coords.accuracy < best.coords.accuracy)) {
-          best = pos;
+        if (!pos || !pos.coords) return;
+        var s = normalizeSample(pos);
+        if (!isFinite(s.lat) || !isFinite(s.lng)) return;
+        samples.push(s);
+        if (samples.length > 10) {
+          samples.shift();
         }
-        if (pos.coords && pos.coords.accuracy <= desiredAccuracy) {
+        if (tryFinishFromSamples(false)) {
           clearTimeout(timeoutId);
-          finish(pos, null);
         }
       }, function (err) {
         clearTimeout(timeoutId);
-        if (best) {
-          finish(best, null);
-        } else {
+        if (!tryFinishFromSamples(true)) {
           finish(null, err);
         }
       }, {
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: maxWaitMs
+        timeout: Math.max(5000, Math.floor(maxWaitMs / 2))
       });
     });
+  }
+
+  function shouldRejectGpsJump(newLatLng, newAccuracy) {
+    if (!state.currentPosition || !state.currentPositionAt) return false;
+    if (!cfg.gpsJumpProtection) return false;
+
+    var previousAgeMs = Date.now() - state.currentPositionAt;
+    if (previousAgeMs > (cfg.gpsJumpProtectMaxAgeMs || 5 * 60 * 1000)) return false;
+
+    var jumpDistance = distanceMeters(
+      { lat: state.currentPosition.lat, lng: state.currentPosition.lng },
+      { lat: newLatLng.lat, lng: newLatLng.lng }
+    );
+    var maxJumpMeters = cfg.gpsJumpRejectDistanceMeters || 220;
+    var accuracyTooLow = newAccuracy == null || newAccuracy > (cfg.gpsJumpRejectAccuracyMeters || 60);
+    return jumpDistance > maxJumpMeters && accuracyTooLow;
   }
 
   function activateTab(name) {
@@ -716,9 +963,18 @@
       getBestPosition().then(function (pos) {
         var latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
         var accuracy = pos.coords && pos.coords.accuracy ? pos.coords.accuracy : null;
-        state.currentPosition = latlng;
-        state.currentAccuracy = accuracy;
-        drawUserLocation(latlng, accuracy);
+        if (shouldRejectGpsJump(latlng, accuracy)) {
+          setRouteStatus(
+            "Lecture GPS instable ignorée (saut détecté). Réessaie dans 2-3 secondes.",
+            "error"
+          );
+          if (state.currentPosition) {
+            drawUserLocation(state.currentPosition, state.currentAccuracy, { openPopup: false });
+            resolve(state.currentPosition);
+            return;
+          }
+        }
+        updateCurrentPosition(latlng, accuracy, { openPopup: true });
         if (cfg.keepMapFocused === true && focusBounds.contains(latlng)) {
           map.setView(latlng, cfg.defaultZoom || 17);
         } else if (cfg.keepMapFocused === true && !focusBounds.contains(latlng)) {
@@ -739,19 +995,244 @@
     });
   }
 
-  async function drawRouteBetween(fromLatLng, targetLatLng, options) {
-    if (!cfg.useSecureFunctions && !cfg.openRouteServiceApiKey) {
-      setRouteStatus("Ajoute la clé openrouteservice dans config.js.", "error");
+  function setRouteContext(routeResult, destinationLatLng, options) {
+    var opts = options || {};
+    if (!routeResult || !routeResult.latlngs || routeResult.latlngs.length < 2 || !destinationLatLng) {
+      state.routeContext = null;
+      updateNavigationButtons();
+      if (!state.nav.active) {
+        setNavStatus("", null);
+        setNavProgress("", null);
+      }
       return;
     }
-    if (cfg.useSecureFunctions && !getFunctionsReady()) {
-      setRouteStatus("Configure functionsBaseUrl + functionNames dans config.js.", "error");
+
+    var routeLatLngs = routeResult.latlngs.map(function (p) {
+      return L.latLng(p.lat, p.lng);
+    });
+    var segmentLengths = buildSegmentLengths(routeLatLngs);
+    state.routeContext = {
+      destination: L.latLng(destinationLatLng.lat, destinationLatLng.lng),
+      routeLatLngs: routeLatLngs,
+      segmentLengths: segmentLengths,
+      totalDistance: routeResult.summary && routeResult.summary.distance
+        ? routeResult.summary.distance
+        : sumValues(segmentLengths),
+      totalDuration: routeResult.summary && routeResult.summary.duration
+        ? routeResult.summary.duration
+        : null,
+      profile: routeResult.profile,
+      preference: routeResult.preference,
+      avoidMainRoads: !!routeResult.avoidMainRoads,
+      roundTrip: !!routeResult.roundTrip
+    };
+    if (state.nav.active) {
+      syncNavFromRouteContext();
+    }
+    if (!opts.silentHint && !state.nav.active) {
+      setNavStatus("Itinéraire prêt. Clique sur 'Démarrer guidage'.", "success");
+      setNavProgress("", null);
+    }
+    updateNavigationButtons();
+  }
+
+  function clearRouteContext() {
+    state.routeContext = null;
+    updateNavigationButtons();
+    if (!state.nav.active) {
+      setNavStatus("", null);
+      setNavProgress("", null);
+    }
+  }
+
+  function stopNavigation(showMessage) {
+    if (state.nav.watchId !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(state.nav.watchId);
+    }
+    state.nav.active = false;
+    state.nav.watchId = null;
+    state.nav.rerouteInFlight = false;
+    state.nav.lastRerouteAt = 0;
+    state.nav.destination = null;
+    state.nav.routeLatLngs = [];
+    state.nav.segmentLengths = [];
+    state.nav.totalDistance = null;
+    state.nav.totalDuration = null;
+    state.nav.profile = null;
+    state.nav.preference = null;
+    state.nav.avoidMainRoads = false;
+    state.nav.roundTrip = false;
+    updateNavigationButtons();
+    if (showMessage !== false) {
+      setNavStatus("Guidage arrêté.", null);
+      setNavProgress("", null);
+    }
+  }
+
+  function syncNavFromRouteContext() {
+    if (!state.routeContext) return false;
+    state.nav.destination = L.latLng(state.routeContext.destination.lat, state.routeContext.destination.lng);
+    state.nav.routeLatLngs = state.routeContext.routeLatLngs.slice();
+    state.nav.segmentLengths = state.routeContext.segmentLengths.slice();
+    state.nav.totalDistance = state.routeContext.totalDistance;
+    state.nav.totalDuration = state.routeContext.totalDuration;
+    state.nav.profile = state.routeContext.profile;
+    state.nav.preference = state.routeContext.preference;
+    state.nav.avoidMainRoads = state.routeContext.avoidMainRoads;
+    state.nav.roundTrip = state.routeContext.roundTrip;
+    return true;
+  }
+
+  async function rerouteNavigation(reason) {
+    if (!state.nav.active || !state.nav.destination || !state.currentPosition) return;
+    if (state.nav.rerouteInFlight) return;
+    var now = Date.now();
+    var cooldown = cfg.navRerouteCooldownMs || 10000;
+    if ((now - state.nav.lastRerouteAt) < cooldown) return;
+
+    state.nav.rerouteInFlight = true;
+    state.nav.lastRerouteAt = now;
+    setNavStatus("Recalcul itinéraire (" + reason + ")...", "error");
+    try {
+      var routeResult = await drawRouteBetween(state.currentPosition, state.nav.destination, {
+        profile: state.nav.profile || getSelectedRouteProfile(),
+        preference: state.nav.preference || getSelectedRoutePreference(),
+        avoidMainRoads: state.nav.avoidMainRoads,
+        roundTrip: false,
+        skipFitBounds: true
+      });
+      if (routeResult) {
+        setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
+        setRouteContext(routeResult, state.nav.destination, { silentHint: true });
+        syncNavFromRouteContext();
+        setNavStatus("Itinéraire mis à jour.", "success");
+      }
+    } catch (err) {
+      setNavStatus("Recalcul impossible: " + err.message, "error");
+    } finally {
+      state.nav.rerouteInFlight = false;
+    }
+  }
+
+  function updateNavigationProgress(latlng, accuracy) {
+    if (!state.nav.active || !state.nav.routeLatLngs || state.nav.routeLatLngs.length < 2) return;
+    var progress = computeRouteProgress(latlng, state.nav.routeLatLngs, state.nav.segmentLengths);
+    if (!progress) return;
+
+    var offRouteThreshold = cfg.navOffRouteThresholdMeters || 45;
+    var arrivalDistance = cfg.navArrivalDistanceMeters || 20;
+    var remainingDuration = null;
+    if (state.nav.totalDuration && state.nav.totalDistance && state.nav.totalDistance > 0) {
+      remainingDuration = state.nav.totalDuration * (progress.remainingDistance / state.nav.totalDistance);
+    }
+    var quality = "success";
+    var info = "Restant: " + formatDistance(progress.remainingDistance) +
+      " | Temps restant: " + (remainingDuration != null ? formatDuration(remainingDuration) : "-") +
+      " | Écart route: " + Math.round(progress.distanceToRoute) + " m";
+
+    var maxAcc = cfg.navMaxAccuracyMeters || 120;
+    if (accuracy && accuracy > maxAcc) {
+      quality = "error";
+      info += " | GPS faible ±" + Math.round(accuracy) + " m";
+    } else if (progress.distanceToRoute > offRouteThreshold) {
+      quality = "error";
+    }
+    setNavProgress(info, quality);
+
+    if (progress.remainingDistance <= arrivalDistance) {
+      setNavStatus("Destination atteinte.", "success");
+      stopNavigation(false);
       return;
+    }
+
+    if (progress.distanceToRoute > offRouteThreshold) {
+      rerouteNavigation("hors trajectoire");
+    } else if (!accuracy || accuracy <= maxAcc) {
+      setNavStatus("Guidage actif.", "success");
+    }
+  }
+
+  function handleNavigationPosition(pos) {
+    if (!state.nav.active || !pos || !pos.coords) return;
+    var latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    var accuracy = pos.coords && pos.coords.accuracy ? pos.coords.accuracy : null;
+
+    if (shouldRejectGpsJump(latlng, accuracy)) {
+      setNavStatus("Lecture GPS instable ignorée.", "error");
+      return;
+    }
+
+    updateCurrentPosition(latlng, accuracy, { openPopup: false });
+
+    if (cfg.navFollowUser !== false) {
+      map.panTo(latlng, { animate: true, duration: 0.5 });
+    }
+    updateNavigationProgress(latlng, accuracy);
+  }
+
+  async function startNavigation() {
+    if (!state.routeContext) {
+      setNavStatus("Calcule d'abord un itinéraire.", "error");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setNavStatus("GPS non disponible sur cet appareil.", "error");
+      return;
+    }
+
+    stopNavigation(false);
+    state.nav.active = true;
+    syncNavFromRouteContext();
+    updateNavigationButtons();
+    setNavStatus("Guidage démarré.", "success");
+    setNavProgress("En attente de mise à jour GPS...", null);
+
+    if (!state.currentPosition) {
+      try {
+        await locateUser();
+      } catch (_) {
+        // watchPosition ci-dessous continuera à tenter les lectures GPS
+      }
+    }
+    if (state.currentPosition) {
+      updateNavigationProgress(state.currentPosition, state.currentAccuracy);
+    }
+
+    state.nav.watchId = navigator.geolocation.watchPosition(function (pos) {
+      handleNavigationPosition(pos);
+    }, function (err) {
+      setNavStatus("Erreur GPS: " + ((err && err.message) || "inconnue"), "error");
+    }, {
+      enableHighAccuracy: true,
+      maximumAge: cfg.navMaximumAgeMs || 1000,
+      timeout: cfg.navTimeoutMs || 12000
+    });
+  }
+
+  function onRouteReady(routeResult, destinationLatLng, message) {
+    if (!routeResult) return;
+    setRouteStatus(message, "success");
+    setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
+    setRouteContext(routeResult, destinationLatLng);
+    if (cfg.navAutoStart === true) {
+      startNavigation().catch(function (err) {
+        setNavStatus("Impossible de démarrer le guidage: " + err.message, "error");
+      });
+    }
+  }
+
+  async function drawRouteBetween(fromLatLng, targetLatLng, options) {
+    if (!cfg.useSecureFunctions && !cfg.openRouteServiceApiKey) {
+      throw new Error("Ajoute la clé openrouteservice dans config.js.");
+    }
+    if (cfg.useSecureFunctions && !getFunctionsReady()) {
+      throw new Error("Configure functionsBaseUrl + functionNames dans config.js.");
     }
     var from = fromLatLng;
     var profile = (options && options.profile) || getSelectedRouteProfile();
     var preference = (options && options.preference) || getSelectedRoutePreference();
     var roundTrip = !!(options && options.roundTrip);
+    var skipFitBounds = !!(options && options.skipFitBounds);
     var avoidMainRoads = (options && typeof options.avoidMainRoads === "boolean")
       ? options.avoidMainRoads
       : getAvoidMainRoads();
@@ -807,17 +1288,23 @@
     routeLayer.clearLayers();
     L.polyline(latlngs, { color: "#1f6f8b", weight: 5, opacity: 0.9 }).addTo(routeLayer);
 
-    var bothInFocus = focusBounds.contains(from) && focusBounds.contains(targetLatLng);
-    if (cfg.keepMapFocused === true && bothInFocus) {
-      map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
-    } else {
-      map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] });
+    if (!skipFitBounds) {
+      var bothInFocus = focusBounds.contains(from) && focusBounds.contains(targetLatLng);
+      if (cfg.keepMapFocused === true && bothInFocus) {
+        map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
+      } else {
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] });
+      }
     }
     return {
       summary: summary,
       profile: profile,
       preference: preference,
-      roundTrip: roundTrip
+      roundTrip: roundTrip,
+      avoidMainRoads: avoidMainRoads,
+      latlngs: latlngs.map(function (pt) {
+        return L.latLng(pt[0], pt[1]);
+      })
     };
   }
 
@@ -830,12 +1317,10 @@
         avoidMainRoads: getAvoidMainRoads(),
         roundTrip: isRoundTripEnabled()
       });
-      setRouteStatus("Itinéraire calculé.", "success");
-      if (routeResult) {
-        setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
-      }
+      onRouteReady(routeResult, targetLatLng, "Itinéraire calculé.");
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
+      clearRouteContext();
     }
   }
 
@@ -889,12 +1374,10 @@
         avoidMainRoads: getAvoidMainRoads(),
         roundTrip: isRoundTripEnabled()
       });
-      setRouteStatus("Itinéraire calculé entre deux points.", "success");
-      if (routeResult) {
-        setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
-      }
+      onRouteReady(routeResult, toPoint, "Itinéraire calculé entre deux points.");
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
+      clearRouteContext();
     }
   }
 
@@ -938,6 +1421,8 @@
       routeLayer.clearLayers();
       setRouteStatus("", null);
       setRouteMetrics(null, null, null, null);
+      stopNavigation(false);
+      clearRouteContext();
     });
     dom.btnFocusArea.addEventListener("click", function () {
       map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
@@ -947,6 +1432,18 @@
     }
     if (dom.btnRouteBetween) {
       dom.btnRouteBetween.addEventListener("click", routeBetweenPlaces);
+    }
+    if (dom.btnStartNav) {
+      dom.btnStartNav.addEventListener("click", function () {
+        startNavigation().catch(function (err) {
+          setNavStatus("Guidage impossible: " + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnStopNav) {
+      dom.btnStopNav.addEventListener("click", function () {
+        stopNavigation(true);
+      });
     }
 
     dom.btnPickPoiPoint.addEventListener("click", function () {
@@ -1005,6 +1502,7 @@
       dom.routeAvoidMainRoads.checked = !!cfg.routeAvoidMainRoads;
     }
     applyPublicModeUi();
+    updateNavigationButtons();
 
     wireEvents();
     if (cfg.lockToFocusBounds !== false) {

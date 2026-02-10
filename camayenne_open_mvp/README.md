@@ -9,6 +9,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 - Itinéraire vers un POI (openrouteservice)
 - Itinéraire entre deux lieux de Camayenne
 - Itinéraire depuis votre position actuelle (même hors Camayenne)
+- Guidage en direct (position qui bouge pendant la marche)
 
 ## 1) Préparer Supabase
 
@@ -117,26 +118,40 @@ Paramètres ajustables dans `config.js`:
 - `gpsMaxWaitMs`
 - `gpsDesiredAccuracyMeters`
 - `gpsWarnAboveMeters`
+- `gpsMinReadings`
+- `gpsStabilityMeters`
+- `gpsMaxSampleAccuracyMeters`
+- `gpsOutlierDistanceMeters`
+- `gpsJumpProtection`
+- `gpsJumpRejectDistanceMeters`
+- `gpsJumpRejectAccuracyMeters`
 
 ## 11) Déploiement sécurisé Supabase Functions
 
-1. Installer Supabase CLI:
+1. Se connecter (sans installation globale):
 ```powershell
-npm install -g supabase
+npx supabase@latest login
 ```
 2. Connecter le projet:
 ```powershell
-supabase login
-supabase link --project-ref <TON_PROJECT_REF>
+npx supabase@latest link --project-ref <TON_PROJECT_REF>
 ```
 3. Déployer les functions:
 ```powershell
-supabase functions deploy submit-report
-supabase functions deploy route
+npx supabase@latest functions deploy submit-report --no-verify-jwt
+npx supabase@latest functions deploy route --no-verify-jwt
 ```
 4. Définir les secrets:
 ```powershell
-supabase secrets set ORS_API_KEY=<TA_CLE_ORS>
+npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.
+
+## 12) Guidage en direct
+
+1. Calcule d'abord un itinéraire.
+2. Clique `Démarrer guidage`.
+3. Marche: la position et la distance restante se mettent à jour automatiquement.
+4. Si tu sors du trajet, l'app recalcule un meilleur chemin.
+5. Clique `Arrêter guidage` pour stopper le suivi.

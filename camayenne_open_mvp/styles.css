@@ -179,6 +179,10 @@ hr {
   font-weight: 600;
 }
 
+.nav-row {
+  margin-top: 8px;
+}
+
 .result-item {
   border: 1px solid var(--line);
   border-radius: 10px;
