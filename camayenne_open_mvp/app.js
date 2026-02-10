@@ -60,6 +60,8 @@
       watchId: null,
       rerouteInFlight: false,
       lastRerouteAt: 0,
+      currentHeading: null,
+      previousTrackPoint: null,
       destination: null,
       routeLatLngs: [],
       segmentLengths: [],
@@ -113,6 +115,9 @@
     btnStopNav: document.getElementById("btnStopNav"),
     navStatus: document.getElementById("navStatus"),
     navProgress: document.getElementById("navProgress"),
+    compassWidget: document.getElementById("compassWidget"),
+    compassNeedle: document.getElementById("compassNeedle"),
+    compassLabel: document.getElementById("compassLabel"),
     poiName: document.getElementById("poiName"),
     poiCategory: document.getElementById("poiCategory"),
     poiAddress: document.getElementById("poiAddress"),
@@ -361,6 +366,70 @@
     var sinLon = Math.sin(dLon / 2);
     var x = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
     return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  function normalizeDegrees(value) {
+    var v = Number(value);
+    if (!isFinite(v)) return null;
+    v = v % 360;
+    if (v < 0) v += 360;
+    return v;
+  }
+
+  function bearingDegrees(from, to) {
+    var lat1 = toRad(from.lat);
+    var lat2 = toRad(to.lat);
+    var dLon = toRad(to.lng - from.lng);
+    var y = Math.sin(dLon) * Math.cos(lat2);
+    var x = Math.cos(lat1) * Math.sin(lat2) -
+      Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return normalizeDegrees((Math.atan2(y, x) * 180 / Math.PI));
+  }
+
+  function shortestAngleDiff(target, base) {
+    var t = normalizeDegrees(target);
+    var b = normalizeDegrees(base);
+    if (t == null || b == null) return null;
+    var d = t - b;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  function setCompassVisible(visible) {
+    if (!dom.compassWidget) return;
+    dom.compassWidget.hidden = !visible;
+  }
+
+  function updateCompass(latlng, heading) {
+    if (!dom.compassWidget || !dom.compassNeedle || !dom.compassLabel) return;
+    if (!state.nav.active || !state.nav.destination || !latlng) {
+      setCompassVisible(false);
+      return;
+    }
+
+    setCompassVisible(true);
+    var capDest = bearingDegrees(latlng, state.nav.destination);
+    var userHeading = normalizeDegrees(heading != null ? heading : state.nav.currentHeading);
+    var needleRotation;
+    var label;
+
+    if (capDest == null) {
+      dom.compassLabel.textContent = "Boussole";
+      return;
+    }
+
+    if (userHeading == null) {
+      needleRotation = capDest;
+      label = "Cap " + Math.round(capDest) + "°";
+    } else {
+      var rel = shortestAngleDiff(capDest, userHeading);
+      needleRotation = rel;
+      label = "Tourne " + (rel >= 0 ? "+" : "") + Math.round(rel) + "°";
+    }
+
+    dom.compassNeedle.style.transform = "rotate(" + Math.round(needleRotation) + "deg)";
+    dom.compassLabel.textContent = label;
   }
 
   function clampNumber(value, min, max) {
@@ -1070,6 +1139,51 @@
     }
   }
 
+  function centerMapOnUser(latlng) {
+    if (cfg.keepMapFocused === true && focusBounds.contains(latlng)) {
+      map.setView(latlng, cfg.defaultZoom || 17);
+    } else if (cfg.keepMapFocused === true && !focusBounds.contains(latlng)) {
+      map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
+      setRouteStatus("Position détectée hors Camayenne. Itinéraire depuis votre position possible.", "success");
+    } else {
+      map.setView(latlng, cfg.defaultZoom || 17);
+    }
+  }
+
+  function setPositionAccuracyMessage(accuracy, mode) {
+    var m = mode || "final";
+    if (accuracy && accuracy > (cfg.gpsWarnAboveMeters || 120)) {
+      if (m === "quick") {
+        setRouteStatus(
+          "Position rapide affichée (±" + Math.round(accuracy) + " m). Amélioration GPS en cours...",
+          "error"
+        );
+      } else {
+        setRouteStatus("Position trouvée mais précision faible (±" + Math.round(accuracy) + " m). Active le GPS haute précision.", "error");
+      }
+    } else if (accuracy) {
+      if (m === "quick") {
+        setRouteStatus("Position rapide affichée (±" + Math.round(accuracy) + " m). Amélioration GPS en cours...", "success");
+      } else {
+        setRouteStatus("Position détectée (précision ±" + Math.round(accuracy) + " m).", "success");
+      }
+    }
+  }
+
+  function getQuickPosition() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) {
+        reject(new Error("no geolocation"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        maximumAge: cfg.quickPositionMaxAgeMs || 3 * 60 * 1000,
+        timeout: cfg.quickPositionTimeoutMs || 1200
+      });
+    });
+  }
+
   function locateUser(options) {
     var opts = options || {};
     if (!navigator.geolocation) {
@@ -1080,7 +1194,18 @@
       setRouteStatus("Recherche de votre position...", null);
     }
     return new Promise(function (resolve, reject) {
-      getBestPosition().then(function (pos) {
+      var fallbackPosition = (!opts.forceFresh && state.currentPosition) ? state.currentPosition : null;
+      var fallbackAccuracy = (!opts.forceFresh && state.currentAccuracy) ? state.currentAccuracy : null;
+
+      if (!opts.forceFresh && opts.showCachedFirst !== false && state.currentPosition) {
+        drawUserLocation(state.currentPosition, state.currentAccuracy, { openPopup: false });
+        centerMapOnUser(state.currentPosition);
+        if (!opts.silent) {
+          setRouteStatus("Position connue affichée, actualisation GPS en cours...", null);
+        }
+      }
+
+      function finalizeWithBestPosition(pos) {
         var latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
         var accuracy = pos.coords && pos.coords.accuracy ? pos.coords.accuracy : null;
         if (shouldRejectGpsJump(latlng, accuracy, opts)) {
@@ -1095,24 +1220,48 @@
           }
         }
         updateCurrentPosition(latlng, accuracy, { openPopup: opts.openPopup !== false });
-        if (cfg.keepMapFocused === true && focusBounds.contains(latlng)) {
-          map.setView(latlng, cfg.defaultZoom || 17);
-        } else if (cfg.keepMapFocused === true && !focusBounds.contains(latlng)) {
-          map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
-          setRouteStatus("Position détectée hors Camayenne. Itinéraire depuis votre position possible.", "success");
-        } else {
-          map.setView(latlng, cfg.defaultZoom || 17);
-        }
-        if (accuracy && accuracy > (cfg.gpsWarnAboveMeters || 120)) {
-          setRouteStatus("Position trouvée mais précision faible (±" + Math.round(accuracy) + " m). Active le GPS haute précision.", "error");
-        } else if (accuracy) {
-          setRouteStatus("Position détectée (précision ±" + Math.round(accuracy) + " m).", "success");
-        }
+        centerMapOnUser(latlng);
+        setPositionAccuracyMessage(accuracy, "final");
         resolve(latlng);
-      }).catch(function (err) {
+      }
+
+      function onBestError(err) {
+        if (fallbackPosition && !opts.forceFresh) {
+          updateCurrentPosition(fallbackPosition, fallbackAccuracy, { openPopup: false });
+          if (!opts.silent) {
+            setRouteStatus("Position approximative utilisée. GPS précis indisponible pour le moment.", "error");
+          }
+          resolve(fallbackPosition);
+          return;
+        }
         setRouteStatus("Impossible d'obtenir la position actuelle.", "error");
         reject(err);
-      });
+      }
+
+      function runBestPosition() {
+        getBestPosition().then(finalizeWithBestPosition).catch(onBestError);
+      }
+
+      if (!opts.forceFresh && opts.quickFirst !== false) {
+        getQuickPosition().then(function (quickPos) {
+          var quickLatLng = L.latLng(quickPos.coords.latitude, quickPos.coords.longitude);
+          var quickAcc = quickPos.coords && quickPos.coords.accuracy ? quickPos.coords.accuracy : null;
+          if (!shouldRejectGpsJump(quickLatLng, quickAcc, { forceFresh: false })) {
+            updateCurrentPosition(quickLatLng, quickAcc, { openPopup: false });
+            centerMapOnUser(quickLatLng);
+            fallbackPosition = quickLatLng;
+            fallbackAccuracy = quickAcc;
+            if (!opts.silent) {
+              setPositionAccuracyMessage(quickAcc, "quick");
+            }
+          }
+          runBestPosition();
+        }).catch(function () {
+          runBestPosition();
+        });
+      } else {
+        runBestPosition();
+      }
     });
   }
 
@@ -1160,6 +1309,7 @@
     };
     if (state.nav.active) {
       syncNavFromRouteContext();
+      updateCompass(state.currentPosition, state.nav.currentHeading);
     }
     if (!opts.silentHint && !state.nav.active) {
       setNavStatus("Itinéraire prêt. Clique sur 'Démarrer guidage'.", "success");
@@ -1185,6 +1335,8 @@
     state.nav.watchId = null;
     state.nav.rerouteInFlight = false;
     state.nav.lastRerouteAt = 0;
+    state.nav.currentHeading = null;
+    state.nav.previousTrackPoint = null;
     state.nav.destination = null;
     state.nav.routeLatLngs = [];
     state.nav.segmentLengths = [];
@@ -1199,6 +1351,7 @@
       setNavStatus("Guidage arrêté.", null);
       setNavProgress("", null);
     }
+    setCompassVisible(false);
   }
 
   function syncNavFromRouteContext() {
@@ -1288,6 +1441,7 @@
     if (!state.nav.active || !pos || !pos.coords) return;
     var latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
     var accuracy = pos.coords && pos.coords.accuracy ? pos.coords.accuracy : null;
+    var coordsHeading = pos.coords && isFinite(pos.coords.heading) ? Number(pos.coords.heading) : null;
 
     if (shouldRejectGpsJump(latlng, accuracy)) {
       setNavStatus("Lecture GPS instable ignorée.", "error");
@@ -1299,7 +1453,19 @@
     if (cfg.navFollowUser !== false) {
       map.panTo(latlng, { animate: true, duration: 0.5 });
     }
+
+    if (coordsHeading != null && !isNaN(coordsHeading)) {
+      state.nav.currentHeading = normalizeDegrees(coordsHeading);
+    } else if (state.nav.previousTrackPoint) {
+      var moved = distanceMeters(state.nav.previousTrackPoint, latlng);
+      if (moved >= (cfg.navHeadingMinMoveMeters || 4)) {
+        state.nav.currentHeading = bearingDegrees(state.nav.previousTrackPoint, latlng);
+      }
+    }
+    state.nav.previousTrackPoint = latlng;
+
     updateNavigationProgress(latlng, accuracy);
+    updateCompass(latlng, state.nav.currentHeading);
   }
 
   async function startNavigation() {
@@ -1315,6 +1481,7 @@
     stopNavigation(false);
     state.nav.active = true;
     syncNavFromRouteContext();
+    state.nav.previousTrackPoint = state.currentPosition || null;
     updateNavigationButtons();
     setNavStatus("Guidage démarré.", "success");
     setNavProgress("En attente de mise à jour GPS...", null);
@@ -1328,6 +1495,7 @@
     }
     if (state.currentPosition) {
       updateNavigationProgress(state.currentPosition, state.currentAccuracy);
+      updateCompass(state.currentPosition, state.nav.currentHeading);
     }
 
     state.nav.watchId = navigator.geolocation.watchPosition(function (pos) {
@@ -1590,7 +1758,12 @@
     dom.btnSearch.addEventListener("click", runSearch);
     dom.btnResetSearch.addEventListener("click", clearSearch);
     dom.btnLocate.addEventListener("click", function () {
-      locateUser({ forceFresh: true, openPopup: true }).catch(function () {
+      locateUser({
+        forceFresh: false,
+        quickFirst: true,
+        showCachedFirst: true,
+        openPopup: true
+      }).catch(function () {
         setRouteStatus("Impossible d'obtenir la position.", "error");
       });
       if (isMobileLayout()) {
@@ -1695,6 +1868,7 @@
     }
     applyPublicModeUi();
     updateNavigationButtons();
+    setCompassVisible(false);
     syncPanelWithViewport(true);
 
     wireEvents();

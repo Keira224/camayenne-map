@@ -155,7 +155,8 @@ npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 2. Clique `Démarrer guidage`.
 3. Marche: la position et la distance restante se mettent à jour automatiquement.
 4. Si tu sors du trajet, l'app recalcule un meilleur chemin.
-5. Clique `Arrêter guidage` pour stopper le suivi.
+5. Une boussole en haut à droite indique la direction à suivre.
+6. Clique `Arrêter guidage` pour stopper le suivi.
 
 ## 13) Back-office administration
 
