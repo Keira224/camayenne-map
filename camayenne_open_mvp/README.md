@@ -82,11 +82,15 @@ Tu peux déployer ce dossier directement sur:
 - `latitude`
 - `longitude`
 - `created_at`
+- `ai_suggested_type`
+- `ai_priority`
+- `ai_summary`
+- `ai_confidence`
 
 ## 7) Notes importantes
 
 1. En mode public sécurisé, l'ajout direct depuis `anon` est bloqué via RLS.
-2. Les signalements passent par la function `submit-report` avec anti-spam basique.
+2. Les signalements passent par la function `submit-report` avec anti-spam basique + triage IA (si `OPENAI_API_KEY` est configure).
 3. Le calcul d'itinéraire passe par la function `route` (clé ORS cachée côté serveur).
 4. Pour gros trafic, n'utilise pas le serveur de tuiles OSM public en direct.
 
@@ -148,6 +152,8 @@ npx supabase@latest functions deploy resolve-share --no-verify-jwt
 4. Définir les secrets:
 ```powershell
 npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
+npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
+npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.

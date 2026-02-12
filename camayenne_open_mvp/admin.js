@@ -79,6 +79,34 @@
     return d.toLocaleString("fr-FR");
   }
 
+  function fmtAiPriority(priority) {
+    var p = String(priority || "").toUpperCase();
+    if (p === "HIGH") return "Haute";
+    if (p === "LOW") return "Basse";
+    if (p === "MEDIUM") return "Moyenne";
+    return "-";
+  }
+
+  function renderAiCell(row) {
+    if (!row || !row.ai_processed_at) {
+      return "<small>Non traite</small>";
+    }
+    var confidence = Number(row.ai_confidence);
+    var confidenceText = isFinite(confidence)
+      ? Math.round(confidence * 100) + "%"
+      : "-";
+    var parts = [];
+    parts.push("<small>Type suggere: " + escapeHtml(row.ai_suggested_type || "-") + "</small>");
+    parts.push("<small>Priorite: " + escapeHtml(fmtAiPriority(row.ai_priority)) + " (" + escapeHtml(confidenceText) + ")</small>");
+    if (row.ai_summary) {
+      parts.push("<small>Resume: " + escapeHtml(row.ai_summary) + "</small>");
+    }
+    if (row.ai_reason) {
+      parts.push("<small>Motif: " + escapeHtml(row.ai_reason) + "</small>");
+    }
+    return parts.join("<br>");
+  }
+
   function fillSelect(node, values, includeAll) {
     if (!node) return;
     node.innerHTML = "";
@@ -215,7 +243,7 @@
   function renderReportsTable(rows) {
     dom.reportsTableBody.innerHTML = "";
     if (!rows.length) {
-      dom.reportsTableBody.innerHTML = '<tr><td colspan="6">Aucun signalement.</td></tr>';
+      dom.reportsTableBody.innerHTML = '<tr><td colspan="7">Aucun signalement.</td></tr>';
       return;
     }
 
@@ -228,6 +256,7 @@
         "<td>" + row.id + "</td>" +
         "<td>" + escapeHtml(row.title) + "<br><small>" + escapeHtml(row.description || "") + "</small></td>" +
         "<td>" + escapeHtml(row.type) + "</td>" +
+        "<td>" + renderAiCell(row) + "</td>" +
         "<td>" +
         "<select data-action='report-status' data-id='" + row.id + "'>" +
         reportStatuses.map(function (status) {

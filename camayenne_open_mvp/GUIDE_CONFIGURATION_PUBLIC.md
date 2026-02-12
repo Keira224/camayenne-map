@@ -111,12 +111,15 @@ supabase secrets set ORS_API_KEY=<TA_NOUVELLE_CLE_ORS>
 Si tu utilises `npx`:
 
 ```powershell
-npx supabase@latest secrets set ORS_API_KEY=eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjhiMmRiMGNjZDI5ZDQ0Y2I5ZTc0NTk5YjEzZjUzMjhmIiwiaCI6Im11cm11cjY0In0=
+npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
+npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
+npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 ```
 
 Pourquoi:
 - la clé ORS n'apparaît plus dans le front.
 - les appels passent par `supabase/functions/route`.
+- le triage IA des signalements reste côté serveur.
 
 ---
 
@@ -142,6 +145,7 @@ Point important:
 - colonne `reports.source_hash` doit exister
 - index `idx_reports_source_hash_created_at` doit exister
 - table `location_shares` doit exister
+- colonnes IA de `reports` (`ai_suggested_type`, `ai_priority`, `ai_summary`, `ai_confidence`) doivent exister
 
 ---
 
