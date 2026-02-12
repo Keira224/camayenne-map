@@ -1320,13 +1320,22 @@
           fillOpacity: 0.08
         }).addTo(shareLayer);
       }
+      var routeBtnId = "shareRouteBtn";
       var expiresText = data && data.expiresAt
         ? new Date(data.expiresAt).toLocaleString("fr-FR")
         : "";
       marker.bindPopup(
         "<strong>Position partagée</strong>" +
-        (expiresText ? "<br>Expire: " + escapeHtml(expiresText) : "")
+        (expiresText ? "<br>Expire: " + escapeHtml(expiresText) : "") +
+        "<br><button id='" + routeBtnId + "' type='button'>Itinéraire vers cette position</button>"
       ).openPopup();
+      marker.on("popupopen", function (evt) {
+        var button = evt.popup.getElement().querySelector("#" + routeBtnId);
+        if (!button) return;
+        button.addEventListener("click", function () {
+          drawRouteTo(latlng);
+        });
+      });
       map.setView(latlng, cfg.shareLocationZoom || 17);
       setStatus(dom.searchStatus, "Position partagée ouverte.", "success");
       setShareStatus("Lien valide.", "success");
