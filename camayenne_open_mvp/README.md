@@ -11,6 +11,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 - Itinéraire depuis votre position actuelle (même hors Camayenne)
 - Guidage en direct (position qui bouge pendant la marche)
 - Photo des lieux (prise terrain via back-office)
+- Partage de position par lien temporaire
 
 ## 1) Préparer Supabase
 
@@ -141,6 +142,8 @@ npx supabase@latest link --project-ref <TON_PROJECT_REF>
 ```powershell
 npx supabase@latest functions deploy submit-report --no-verify-jwt
 npx supabase@latest functions deploy route --no-verify-jwt
+npx supabase@latest functions deploy share-location --no-verify-jwt
+npx supabase@latest functions deploy resolve-share --no-verify-jwt
 ```
 4. Définir les secrets:
 ```powershell
@@ -148,6 +151,8 @@ npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.
+6. Activer le partage de position:
+- Exécuter `supabase/location_shares.sql` dans SQL Editor.
 
 ## 12) Guidage en direct
 

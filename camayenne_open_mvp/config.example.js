@@ -51,8 +51,12 @@ window.CAMAYENNE_CONFIG = {
   functionsAuthToken: "",
   functionNames: {
     submitReport: "submit-report",
-    route: "route"
+    route: "route",
+    shareLocation: "share-location",
+    resolveShare: "resolve-share"
   },
+  shareLocationTtlMinutes: 30,
+  shareLocationPrecisionDecimals: 6,
 
   // Remplace par ton projet Supabase
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",

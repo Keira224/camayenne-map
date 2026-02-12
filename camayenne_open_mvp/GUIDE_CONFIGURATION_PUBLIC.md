@@ -76,6 +76,8 @@ Depuis le dossier racine du repo:
 ```powershell
 supabase functions deploy submit-report
 supabase functions deploy route
+supabase functions deploy share-location --no-verify-jwt
+supabase functions deploy resolve-share --no-verify-jwt
 ```
 
 Si tu veux autoriser les appels publics sans JWT utilisateur:
@@ -83,6 +85,8 @@ Si tu veux autoriser les appels publics sans JWT utilisateur:
 ```powershell
 supabase functions deploy submit-report --no-verify-jwt
 supabase functions deploy route --no-verify-jwt
+supabase functions deploy share-location --no-verify-jwt
+supabase functions deploy resolve-share --no-verify-jwt
 ```
 
 Si tu utilises `npx`:
@@ -90,6 +94,8 @@ Si tu utilises `npx`:
 ```powershell
 npx supabase@latest functions deploy submit-report
 npx supabase@latest functions deploy route
+npx supabase@latest functions deploy share-location --no-verify-jwt
+npx supabase@latest functions deploy resolve-share --no-verify-jwt
 ```
 
 ---
@@ -130,10 +136,12 @@ Dans Supabase > SQL Editor:
 
 Dans Supabase > SQL Editor, si besoin ré-exécuter:
 - `camayenne_open_mvp/supabase/schema.sql`
+- `camayenne_open_mvp/supabase/location_shares.sql`
 
 Point important:
 - colonne `reports.source_hash` doit exister
 - index `idx_reports_source_hash_created_at` doit exister
+- table `location_shares` doit exister
 
 ---
 
@@ -176,6 +184,13 @@ URL attendue:
 ### Test E - Sécurité
 1. Vérifie que l'onglet `Ajouter lieu` n'est pas disponible.
 2. Vérifie qu'aucune clé ORS n'est visible dans `config.js` public.
+
+### Test F - Partage position
+1. Clique `Partager ma position`.
+2. Partage le lien dans WhatsApp/SMS ou copie le lien.
+3. Ouvre le lien sur un autre téléphone.
+4. Vérifie que la carte se centre sur la position partagée.
+5. Vérifie qu'un lien expiré affiche une erreur.
 
 ---
 

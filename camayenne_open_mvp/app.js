@@ -70,6 +70,7 @@
   var sketchLayer = L.layerGroup().addTo(map);
   var userLayer = L.layerGroup().addTo(map);
   var routeLayer = L.layerGroup().addTo(map);
+  var shareLayer = L.layerGroup().addTo(map);
 
   var state = {
     poi: [],
@@ -120,6 +121,8 @@
     btnLocate: document.getElementById("btnLocate"),
     btnClearRoute: document.getElementById("btnClearRoute"),
     btnFocusArea: document.getElementById("btnFocusArea"),
+    btnShareLocation: document.getElementById("btnShareLocation"),
+    shareStatus: document.getElementById("shareStatus"),
     togglePoi: document.getElementById("togglePoi"),
     toggleReports: document.getElementById("toggleReports"),
     searchName: document.getElementById("searchName"),
@@ -221,6 +224,10 @@
     if (!message) {
       setStatus(dom.routeMetrics, "", null);
     }
+  }
+
+  function setShareStatus(message, level) {
+    setStatus(dom.shareStatus, message, level);
   }
 
   function setNavStatus(message, level) {
@@ -815,6 +822,13 @@
     return !!(cfg.functionsBaseUrl && cfg.supabaseAnonKey && cfg.functionNames);
   }
 
+  function getFunctionName(key, fallbackName) {
+    if (cfg.functionNames && cfg.functionNames[key]) {
+      return cfg.functionNames[key];
+    }
+    return fallbackName;
+  }
+
   function looksLikeJwt(value) {
     if (!value) return false;
     return String(value).split(".").length === 3;
@@ -1054,6 +1068,189 @@
     setStatus(dom.searchStatus, "", null);
   }
 
+  function getShareTokenFromUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      var token = params.get("s") || params.get("share");
+      return token ? String(token).trim() : "";
+    } catch (_) {
+      var raw = String(window.location.search || "");
+      var match = raw.match(/[?&](?:s|share)=([^&]+)/i);
+      return match && match[1] ? decodeURIComponent(match[1]).trim() : "";
+    }
+  }
+
+  function clearShareTokenFromUrl() {
+    if (!window.history || !window.history.replaceState) return;
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.delete("s");
+      url.searchParams.delete("share");
+      window.history.replaceState({}, "", url.pathname + (url.search || "") + (url.hash || ""));
+    } catch (_) {
+      // no-op
+    }
+  }
+
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "readonly");
+        ta.style.position = "fixed";
+        ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) resolve();
+        else reject(new Error("copy failed"));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  async function shareOrCopyLink(url) {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Camayenne Map",
+          text: "Voici ma position sur la carte.",
+          url: url
+        });
+        return "shared";
+      } catch (err) {
+        if (err && err.name === "AbortError") {
+          throw err;
+        }
+      }
+    }
+    await copyTextToClipboard(url);
+    return "copied";
+  }
+
+  function buildShareBaseUrl() {
+    if (cfg.shareBaseUrl && String(cfg.shareBaseUrl).trim()) {
+      return String(cfg.shareBaseUrl).trim();
+    }
+    return window.location.origin + window.location.pathname;
+  }
+
+  function normalizeCoordinateForShare(value) {
+    var digits = Number(cfg.shareLocationPrecisionDecimals);
+    if (!isFinite(digits)) digits = 6;
+    digits = Math.max(4, Math.min(7, Math.round(digits)));
+    return Number(Number(value).toFixed(digits));
+  }
+
+  async function createLocationShare(latlng, accuracy) {
+    if (!cfg.useSecureFunctions) {
+      throw new Error("Partage de position disponible uniquement via fonctions sécurisées.");
+    }
+    if (!getFunctionsReady()) {
+      throw new Error("Fonctions sécurisées non configurées.");
+    }
+    var fn = getFunctionName("shareLocation", "share-location");
+    return functionFetch(fn, {
+      latitude: normalizeCoordinateForShare(latlng.lat),
+      longitude: normalizeCoordinateForShare(latlng.lng),
+      accuracy: accuracy != null ? Math.round(accuracy) : null,
+      ttlMinutes: cfg.shareLocationTtlMinutes || 30,
+      baseUrl: buildShareBaseUrl()
+    });
+  }
+
+  async function shareCurrentPosition() {
+    setShareStatus("Préparation du lien de partage...", null);
+    var latlng = await locateUser({
+      forceFresh: true,
+      quickFirst: true,
+      showCachedFirst: true,
+      openPopup: false
+    });
+    if (!latlng) {
+      throw new Error("Position non disponible.");
+    }
+    var data = await createLocationShare(latlng, state.currentAccuracy);
+    var shareUrl = data && data.url
+      ? String(data.url)
+      : (window.location.origin + window.location.pathname + "?s=" + encodeURIComponent(String(data.token || "")));
+    if (!shareUrl) {
+      throw new Error("Lien de partage introuvable.");
+    }
+
+    try {
+      var mode = await shareOrCopyLink(shareUrl);
+      if (mode === "shared") {
+        setShareStatus("Position partagée.", "success");
+      } else {
+        setShareStatus("Lien copié. Tu peux le coller dans WhatsApp/SMS.", "success");
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        setShareStatus("Partage annulé.", null);
+        return;
+      }
+      throw err;
+    }
+  }
+
+  async function openSharedLocationFromUrl() {
+    var token = getShareTokenFromUrl();
+    if (!token) return;
+    if (!cfg.useSecureFunctions || !getFunctionsReady()) {
+      setStatus(dom.searchStatus, "Lien partagé détecté mais fonctions non configurées.", "error");
+      return;
+    }
+
+    setStatus(dom.searchStatus, "Ouverture de la position partagée...", null);
+    try {
+      var fn = getFunctionName("resolveShare", "resolve-share");
+      var data = await functionFetch(fn, { token: token });
+      var lat = Number(data && data.latitude);
+      var lon = Number(data && data.longitude);
+      if (!isFinite(lat) || !isFinite(lon)) {
+        throw new Error("Coordonnées invalides");
+      }
+      var latlng = L.latLng(lat, lon);
+      shareLayer.clearLayers();
+      var marker = L.circleMarker(latlng, {
+        radius: 8,
+        color: "#fff",
+        weight: 2,
+        fillColor: "#c2185b",
+        fillOpacity: 0.95
+      }).addTo(shareLayer);
+      if (data && data.accuracy != null && isFinite(Number(data.accuracy))) {
+        L.circle(latlng, {
+          radius: Number(data.accuracy),
+          color: "#c2185b",
+          weight: 1,
+          fillColor: "#c2185b",
+          fillOpacity: 0.08
+        }).addTo(shareLayer);
+      }
+      var expiresText = data && data.expiresAt
+        ? new Date(data.expiresAt).toLocaleString("fr-FR")
+        : "";
+      marker.bindPopup(
+        "<strong>Position partagée</strong>" +
+        (expiresText ? "<br>Expire: " + escapeHtml(expiresText) : "")
+      ).openPopup();
+      map.setView(latlng, cfg.shareLocationZoom || 17);
+      setStatus(dom.searchStatus, "Position partagée ouverte.", "success");
+      clearShareTokenFromUrl();
+    } catch (err) {
+      setStatus(dom.searchStatus, "Lien de position invalide ou expiré.", "error");
+    }
+  }
+
   function clearPoiForm() {
     dom.poiName.value = "";
     dom.poiCategory.selectedIndex = 0;
@@ -1194,7 +1391,7 @@
     };
     try {
       if (cfg.useSecureFunctions) {
-        var submitReportFn = (cfg.functionNames && cfg.functionNames.submitReport) || "submit-report";
+        var submitReportFn = getFunctionName("submitReport", "submit-report");
         await functionFetch(submitReportFn, payload);
       } else {
         var table = cfg.tables && cfg.tables.reports ? cfg.tables.reports : "reports";
@@ -1648,7 +1845,7 @@
     }
     var data;
     if (cfg.useSecureFunctions) {
-      var routeFn = (cfg.functionNames && cfg.functionNames.route) || "route";
+      var routeFn = getFunctionName("route", "route");
       data = await functionFetch(routeFn, payload);
     } else {
       var url = "https://api.openrouteservice.org/v2/directions/" + profile + "/geojson";
@@ -1869,6 +2066,13 @@
         setPanelCollapsed(true);
       }
     });
+    if (dom.btnShareLocation) {
+      dom.btnShareLocation.addEventListener("click", function () {
+        shareCurrentPosition().catch(function (err) {
+          setShareStatus("Partage impossible: " + err.message, "error");
+        });
+      });
+    }
     if (dom.btnSwapRoute) {
       dom.btnSwapRoute.addEventListener("click", swapRouteEndpoints);
     }
@@ -1973,6 +2177,8 @@
     } catch (err) {
       setStatus(dom.searchStatus, "Erreur chargement: " + err.message, "error");
     }
+
+    await openSharedLocationFromUrl();
   }
 
   bootstrap();

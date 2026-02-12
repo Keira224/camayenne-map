@@ -97,6 +97,10 @@ body {
   grid-column: 1 / -1;
 }
 
+#btnShareLocation {
+  grid-column: 1 / -1;
+}
+
 .layer-toggles {
   margin-top: 12px;
   display: flex;
