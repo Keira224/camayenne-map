@@ -10,10 +10,32 @@
     north: 9.536985,
     east: -13.684157
   };
-  var focusBounds = L.latLngBounds(
-    [focusBoundsConfig.south, focusBoundsConfig.west],
-    [focusBoundsConfig.north, focusBoundsConfig.east]
-  );
+
+  function normalizeFocusPolygon(rawPolygon) {
+    if (!Array.isArray(rawPolygon) || rawPolygon.length < 3) return null;
+    var points = rawPolygon.map(function (item) {
+      if (Array.isArray(item) && item.length >= 2) {
+        return L.latLng(Number(item[0]), Number(item[1]));
+      }
+      if (item && typeof item === "object") {
+        var lat = Number(item.lat);
+        var lon = Number(item.lon != null ? item.lon : item.lng);
+        return L.latLng(lat, lon);
+      }
+      return null;
+    }).filter(function (point) {
+      return point && isFinite(point.lat) && isFinite(point.lng);
+    });
+    return points.length >= 3 ? points : null;
+  }
+
+  var focusPolygonLatLngs = normalizeFocusPolygon(cfg.focusPolygon);
+  var focusBounds = focusPolygonLatLngs
+    ? L.latLngBounds(focusPolygonLatLngs)
+    : L.latLngBounds(
+      [focusBoundsConfig.south, focusBoundsConfig.west],
+      [focusBoundsConfig.north, focusBoundsConfig.east]
+    );
 
   var mapOptions = {};
   if (cfg.lockToFocusBounds !== false) {
@@ -29,12 +51,17 @@
   }).addTo(map);
 
   if (cfg.showFocusOutline !== false) {
-    L.rectangle(focusBounds, {
+    var focusStyle = {
       color: "#1f6f8b",
       weight: 1.2,
       fillColor: "#1f6f8b",
       fillOpacity: 0.04
-    }).addTo(map);
+    };
+    if (focusPolygonLatLngs) {
+      L.polygon(focusPolygonLatLngs, focusStyle).addTo(map);
+    } else {
+      L.rectangle(focusBounds, focusStyle).addTo(map);
+    }
   }
 
   var poiLayer = L.layerGroup().addTo(map);
@@ -142,8 +169,29 @@
     hintText: document.getElementById("hintText")
   };
 
+  function isPointInPolygon(latlng, polygonLatLngs) {
+    if (!latlng || !polygonLatLngs || polygonLatLngs.length < 3) return false;
+    var x = latlng.lng;
+    var y = latlng.lat;
+    var inside = false;
+    for (var i = 0, j = polygonLatLngs.length - 1; i < polygonLatLngs.length; j = i++) {
+      var xi = polygonLatLngs[i].lng;
+      var yi = polygonLatLngs[i].lat;
+      var xj = polygonLatLngs[j].lng;
+      var yj = polygonLatLngs[j].lat;
+
+      var intersects = ((yi > y) !== (yj > y)) &&
+        (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-12) + xi);
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
   function isInFocusArea(latlng) {
     if (!cfg.enforceFocusBounds) return true;
+    if (focusPolygonLatLngs) {
+      return isPointInPolygon(latlng, focusPolygonLatLngs);
+    }
     return focusBounds.contains(latlng);
   }
 
@@ -155,7 +203,7 @@
     if (!cfg.focusOnlyData) return rows;
     return rows.filter(function (row) {
       if (row.latitude == null || row.longitude == null) return false;
-      return focusBounds.contains(pointFromRow(row));
+      return isInFocusArea(pointFromRow(row));
     });
   }
 
@@ -1168,9 +1216,9 @@
   }
 
   function centerMapOnUser(latlng) {
-    if (cfg.keepMapFocused === true && focusBounds.contains(latlng)) {
+    if (cfg.keepMapFocused === true && isInFocusArea(latlng)) {
       map.setView(latlng, cfg.defaultZoom || 17);
-    } else if (cfg.keepMapFocused === true && !focusBounds.contains(latlng)) {
+    } else if (cfg.keepMapFocused === true && !isInFocusArea(latlng)) {
       map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
       setRouteStatus("Position détectée hors Camayenne. Itinéraire depuis votre position possible.", "success");
     } else {
@@ -1577,7 +1625,7 @@
     var avoidMainRoads = (options && typeof options.avoidMainRoads === "boolean")
       ? options.avoidMainRoads
       : getAvoidMainRoads();
-    if (cfg.routeFromCenterWhenOutsideFocus === true && !focusBounds.contains(from)) {
+    if (cfg.routeFromCenterWhenOutsideFocus === true && !isInFocusArea(from)) {
       from = L.latLng(center.lat, center.lon);
     }
 
@@ -1630,7 +1678,7 @@
     L.polyline(latlngs, { color: "#1f6f8b", weight: 5, opacity: 0.9 }).addTo(routeLayer);
 
     if (!skipFitBounds) {
-      var bothInFocus = focusBounds.contains(from) && focusBounds.contains(targetLatLng);
+      var bothInFocus = isInFocusArea(from) && isInFocusArea(targetLatLng);
       if (cfg.keepMapFocused === true && bothInFocus) {
         map.fitBounds(focusBounds, { padding: [18, 18], maxZoom: cfg.defaultZoom || 16 });
       } else {

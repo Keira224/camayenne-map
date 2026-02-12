@@ -3,11 +3,17 @@ window.CAMAYENNE_CONFIG = {
   defaultZoom: 16,
   minZoom: 15,
   focusBounds: {
-    south: 9.527607,
-    west: -13.692973,
-    north: 9.536985,
-    east: -13.684157
+    south: 9.529500,
+    west: -13.695000,
+    north: 9.547200,
+    east: -13.672500
   },
+  focusPolygon: [
+    { lat: 9.529500, lon: -13.695000 },
+    { lat: 9.547200, lon: -13.695000 },
+    { lat: 9.547200, lon: -13.676500 },
+    { lat: 9.529500, lon: -13.686400 }
+  ],
   lockToFocusBounds: false,
   enforceFocusBounds: true,
   focusOnlyData: true,
