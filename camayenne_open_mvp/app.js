@@ -1165,6 +1165,18 @@
     return window.location.origin + window.location.pathname;
   }
 
+  function getLocationErrorMessage(err) {
+    if (!err) return "Impossible d'obtenir la position.";
+    if (err.code === 1) return "Autorise la localisation pour calculer l'itineraire.";
+    if (err.code === 2) return "Position indisponible. Verifie ton GPS.";
+    if (err.code === 3) return "Delai depasse pour obtenir la position.";
+    var msg = String(err.message || "");
+    if (msg.toLowerCase().indexOf("no geolocation") !== -1) {
+      return "La geolocalisation n'est pas disponible.";
+    }
+    return "Impossible d'obtenir la position.";
+  }
+
   function getShareTtlMinutes() {
     if (dom.shareTtlSelect && dom.shareTtlSelect.value) {
       var val = Number(dom.shareTtlSelect.value);
@@ -1283,6 +1295,27 @@
     window.open(waUrl, "_blank", "noopener");
   }
 
+  async function drawRouteToSharedPosition(targetLatLng) {
+    try {
+      var from = await getCurrentPositionForRouting({
+        maxAgeMs: cfg.currentPositionMaxAgeMs || 45000,
+        openPopup: false
+      });
+      var routeResult = await drawRouteBetween(from, targetLatLng, {
+        profile: getSelectedRouteProfile(),
+        preference: getSelectedRoutePreference(),
+        avoidMainRoads: getAvoidMainRoads(),
+        roundTrip: false
+      });
+      onRouteReady(routeResult, targetLatLng, "Itineraire calcule vers la position partagee.");
+      setShareStatus("Itineraire pret.", "success");
+    } catch (err) {
+      setRouteStatus("Itineraire impossible: " + err.message, "error");
+      setShareStatus(getLocationErrorMessage(err), "error");
+      clearRouteContext();
+    }
+  }
+
   async function openSharedLocationFromUrl() {
     var token = getShareTokenFromUrl();
     if (!token) return;
@@ -1320,22 +1353,22 @@
           fillOpacity: 0.08
         }).addTo(shareLayer);
       }
-      var routeBtnId = "shareRouteBtn";
       var expiresText = data && data.expiresAt
         ? new Date(data.expiresAt).toLocaleString("fr-FR")
         : "";
       marker.bindPopup(
         "<strong>Position partagée</strong>" +
         (expiresText ? "<br>Expire: " + escapeHtml(expiresText) : "") +
-        "<br><button id='" + routeBtnId + "' type='button'>Itinéraire vers cette position</button>"
-      ).openPopup();
+        "<br><button data-share-route type='button'>Itinéraire vers cette position</button>"
+      );
       marker.on("popupopen", function (evt) {
-        var button = evt.popup.getElement().querySelector("#" + routeBtnId);
+        var button = evt.popup.getElement().querySelector("[data-share-route]");
         if (!button) return;
         button.addEventListener("click", function () {
-          drawRouteTo(latlng);
-        });
+          drawRouteToSharedPosition(latlng);
+        }, { once: true });
       });
+      marker.openPopup();
       map.setView(latlng, cfg.shareLocationZoom || 17);
       setStatus(dom.searchStatus, "Position partagée ouverte.", "success");
       setShareStatus("Lien valide.", "success");
