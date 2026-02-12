@@ -57,6 +57,8 @@ window.CAMAYENNE_CONFIG = {
   },
   shareLocationTtlMinutes: 30,
   shareLocationPrecisionDecimals: 6,
+  shareLocationZoom: 17,
+  shareBaseUrl: "",
 
   // Remplace par ton projet Supabase
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",

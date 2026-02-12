@@ -37,9 +37,25 @@
         <button id="btnLocate" class="btn btn-primary" type="button">Ma position</button>
         <button id="btnClearRoute" class="btn btn-secondary" type="button">Effacer itinéraire</button>
         <button id="btnFocusArea" class="btn btn-secondary" type="button">Zone Camayenne</button>
-        <button id="btnShareLocation" class="btn btn-secondary" type="button">Partager ma position</button>
       </section>
-      <div id="shareStatus" class="status"></div>
+      <section class="share-actions">
+        <div class="cam-subtitle">Partager ma position</div>
+        <label for="shareTtlSelect">Durée du lien</label>
+        <select id="shareTtlSelect">
+          <option value="15">15 min</option>
+          <option value="30" selected>30 min</option>
+          <option value="60">60 min</option>
+        </select>
+        <div class="row">
+          <button id="btnShareLocation" class="btn btn-primary" type="button">Partager</button>
+          <button id="btnShowShareLink" class="btn btn-secondary" type="button">Afficher mon lien</button>
+        </div>
+        <div class="row">
+          <button id="btnShareWhatsApp" class="btn btn-secondary" type="button">Partager WhatsApp</button>
+          <button id="btnShareNewLink" class="btn btn-secondary" type="button" hidden>Générer un nouveau lien</button>
+        </div>
+        <div id="shareStatus" class="status"></div>
+      </section>
 
       <section class="layer-toggles">
         <label><input id="togglePoi" type="checkbox" checked> Afficher POI</label>
@@ -147,6 +163,7 @@
 
     <main class="map-wrap">
       <div id="map"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
       <div id="compassWidget" class="compass-widget" hidden>
         <div class="compass-face">
           <div id="compassNeedle" class="compass-needle"></div>

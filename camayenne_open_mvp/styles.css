@@ -97,8 +97,12 @@ body {
   grid-column: 1 / -1;
 }
 
-#btnShareLocation {
-  grid-column: 1 / -1;
+.share-actions {
+  margin-top: 14px;
+}
+
+.share-actions .row {
+  margin-top: 8px;
 }
 
 .layer-toggles {
@@ -231,6 +235,28 @@ hr {
   border-radius: 10px;
   background: #fbfefd;
   padding: 8px 10px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(20, 26, 24, 0.92);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .advanced-options > summary {

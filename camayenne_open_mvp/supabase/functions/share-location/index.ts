@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     if (countError) {
       return json({ error: "Rate limit check failed" }, 500);
     }
-    if ((count || 0) >= 20) {
+    if ((count || 0) >= 5) {
       return json({ error: "Too many share links. Try again later." }, 429);
     }
 

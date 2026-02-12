@@ -57,6 +57,8 @@ window.CAMAYENNE_CONFIG = {
   },
   shareLocationTtlMinutes: 30,
   shareLocationPrecisionDecimals: 6,
+  shareLocationZoom: 17,
+  shareBaseUrl: "https://keira224.github.io/camayenne-map/camayenne_open_mvp/index.html",
 
   // Supabase
   supabaseUrl: "https://aeetsakqivgvrzwxvcdr.supabase.co",

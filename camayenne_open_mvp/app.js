@@ -83,6 +83,9 @@
     selectedPoiPoint: null,
     selectedReportPoint: null,
     routeContext: null,
+    lastShareUrl: null,
+    lastShareExpiresAt: null,
+    toastTimer: null,
     nav: {
       active: false,
       watchId: null,
@@ -122,7 +125,12 @@
     btnClearRoute: document.getElementById("btnClearRoute"),
     btnFocusArea: document.getElementById("btnFocusArea"),
     btnShareLocation: document.getElementById("btnShareLocation"),
+    btnShowShareLink: document.getElementById("btnShowShareLink"),
+    btnShareWhatsApp: document.getElementById("btnShareWhatsApp"),
+    btnShareNewLink: document.getElementById("btnShareNewLink"),
+    shareTtlSelect: document.getElementById("shareTtlSelect"),
     shareStatus: document.getElementById("shareStatus"),
+    toast: document.getElementById("toast"),
     togglePoi: document.getElementById("togglePoi"),
     toggleReports: document.getElementById("toggleReports"),
     searchName: document.getElementById("searchName"),
@@ -228,6 +236,18 @@
 
   function setShareStatus(message, level) {
     setStatus(dom.shareStatus, message, level);
+  }
+
+  function showToast(message) {
+    if (!dom.toast) return;
+    dom.toast.textContent = message || "";
+    dom.toast.classList.add("is-visible");
+    if (state.toastTimer) {
+      clearTimeout(state.toastTimer);
+    }
+    state.toastTimer = setTimeout(function () {
+      dom.toast.classList.remove("is-visible");
+    }, 2200);
   }
 
   function setNavStatus(message, level) {
@@ -873,7 +893,10 @@
     });
     if (!res.ok) {
       var txt = await res.text();
-      throw new Error("Function HTTP " + res.status + " - " + txt);
+      var error = new Error("Function HTTP " + res.status + " - " + txt);
+      error.status = res.status;
+      error.body = txt;
+      throw error;
     }
     return res.json();
   }
@@ -1142,6 +1165,14 @@
     return window.location.origin + window.location.pathname;
   }
 
+  function getShareTtlMinutes() {
+    if (dom.shareTtlSelect && dom.shareTtlSelect.value) {
+      var val = Number(dom.shareTtlSelect.value);
+      if (isFinite(val)) return val;
+    }
+    return cfg.shareLocationTtlMinutes || 30;
+  }
+
   function normalizeCoordinateForShare(value) {
     var digits = Number(cfg.shareLocationPrecisionDecimals);
     if (!isFinite(digits)) digits = 6;
@@ -1161,19 +1192,25 @@
       latitude: normalizeCoordinateForShare(latlng.lat),
       longitude: normalizeCoordinateForShare(latlng.lng),
       accuracy: accuracy != null ? Math.round(accuracy) : null,
-      ttlMinutes: cfg.shareLocationTtlMinutes || 30,
+      ttlMinutes: getShareTtlMinutes(),
       baseUrl: buildShareBaseUrl()
     });
   }
 
-  async function shareCurrentPosition() {
+  async function generateShareLink() {
     setShareStatus("Préparation du lien de partage...", null);
-    var latlng = await locateUser({
-      forceFresh: true,
-      quickFirst: true,
-      showCachedFirst: true,
-      openPopup: false
-    });
+    ensureShareButtons(true);
+    var latlng = null;
+    if (isCurrentPositionFresh(cfg.currentPositionMaxAgeMs || 45000)) {
+      latlng = state.currentPosition;
+    } else {
+      latlng = await locateUser({
+        forceFresh: true,
+        quickFirst: true,
+        showCachedFirst: true,
+        openPopup: false
+      });
+    }
     if (!latlng) {
       throw new Error("Position non disponible.");
     }
@@ -1184,14 +1221,28 @@
     if (!shareUrl) {
       throw new Error("Lien de partage introuvable.");
     }
+    state.lastShareUrl = shareUrl;
+    state.lastShareExpiresAt = data && data.expiresAt ? String(data.expiresAt) : null;
+    return {
+      url: shareUrl,
+      expiresAt: state.lastShareExpiresAt
+    };
+  }
 
+  async function shareCurrentPosition() {
+    var payload = await generateShareLink();
     try {
-      var mode = await shareOrCopyLink(shareUrl);
+      var mode = await shareOrCopyLink(payload.url);
+      var expireLabel = payload.expiresAt
+        ? " (expire à " + new Date(payload.expiresAt).toLocaleTimeString("fr-FR") + ")"
+        : "";
       if (mode === "shared") {
-        setShareStatus("Position partagée.", "success");
+        setShareStatus("Position partagée." + expireLabel, "success");
       } else {
-        setShareStatus("Lien copié. Tu peux le coller dans WhatsApp/SMS.", "success");
+        setShareStatus("Lien copié. Tu peux le coller dans WhatsApp/SMS." + expireLabel, "success");
+        showToast("Lien copié");
       }
+      ensureShareButtons(true);
     } catch (err) {
       if (err && err.name === "AbortError") {
         setShareStatus("Partage annulé.", null);
@@ -1201,11 +1252,44 @@
     }
   }
 
+  function ensureShareButtons(reset) {
+    if (!dom.btnShareNewLink) return;
+    if (reset) {
+      dom.btnShareNewLink.hidden = true;
+      return;
+    }
+    dom.btnShareNewLink.hidden = false;
+  }
+
+  async function showLastShareLink() {
+    if (!state.lastShareUrl) {
+      setShareStatus("Aucun lien en mémoire. Clique d'abord sur Partager.", "error");
+      return;
+    }
+    await copyTextToClipboard(state.lastShareUrl);
+    showToast("Lien copié");
+    setShareStatus("Lien copié.", "success");
+  }
+
+  async function shareViaWhatsApp() {
+    var shareUrl = state.lastShareUrl;
+    if (!shareUrl) {
+      var payload = await generateShareLink();
+      shareUrl = payload.url;
+      setShareStatus("Lien prêt pour WhatsApp.", "success");
+    }
+    var message = "Voici ma position sur Camayenne Map: " + shareUrl;
+    var waUrl = "https://wa.me/?text=" + encodeURIComponent(message);
+    window.open(waUrl, "_blank", "noopener");
+  }
+
   async function openSharedLocationFromUrl() {
     var token = getShareTokenFromUrl();
     if (!token) return;
     if (!cfg.useSecureFunctions || !getFunctionsReady()) {
       setStatus(dom.searchStatus, "Lien partagé détecté mais fonctions non configurées.", "error");
+      setShareStatus("Fonctions de partage non configurées.", "error");
+      ensureShareButtons(true);
       return;
     }
 
@@ -1245,9 +1329,24 @@
       ).openPopup();
       map.setView(latlng, cfg.shareLocationZoom || 17);
       setStatus(dom.searchStatus, "Position partagée ouverte.", "success");
+      setShareStatus("Lien valide.", "success");
+      ensureShareButtons(true);
       clearShareTokenFromUrl();
     } catch (err) {
-      setStatus(dom.searchStatus, "Lien de position invalide ou expiré.", "error");
+      var expired = false;
+      var body = err && err.body ? String(err.body) : "";
+      if (err && err.status === 410) expired = true;
+      if (!expired && body.toLowerCase().indexOf("expired") !== -1) expired = true;
+      if (expired) {
+        setStatus(dom.searchStatus, "Lien expiré. Génère un nouveau lien.", "error");
+        setShareStatus("Lien expiré.", "error");
+        ensureShareButtons(false);
+      } else {
+        setStatus(dom.searchStatus, "Lien de position invalide.", "error");
+        setShareStatus("Lien invalide.", "error");
+        ensureShareButtons(false);
+      }
+      clearShareTokenFromUrl();
     }
   }
 
@@ -2068,6 +2167,27 @@
     });
     if (dom.btnShareLocation) {
       dom.btnShareLocation.addEventListener("click", function () {
+        shareCurrentPosition().catch(function (err) {
+          setShareStatus("Partage impossible: " + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnShowShareLink) {
+      dom.btnShowShareLink.addEventListener("click", function () {
+        showLastShareLink().catch(function (err) {
+          setShareStatus("Impossible de copier: " + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnShareWhatsApp) {
+      dom.btnShareWhatsApp.addEventListener("click", function () {
+        shareViaWhatsApp().catch(function (err) {
+          setShareStatus("WhatsApp indisponible: " + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnShareNewLink) {
+      dom.btnShareNewLink.addEventListener("click", function () {
         shareCurrentPosition().catch(function (err) {
           setShareStatus("Partage impossible: " + err.message, "error");
         });
