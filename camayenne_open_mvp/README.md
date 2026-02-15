@@ -12,6 +12,7 @@ MVP gratuit pour la cartographie de Camayenne avec:
 - Guidage en direct (position qui bouge pendant la marche)
 - Photo des lieux (prise terrain via back-office)
 - Partage de position par lien temporaire
+- Assistant IA public (questions citoyennes + suggestions de lieux)
 
 ## 1) Préparer Supabase
 
@@ -93,6 +94,7 @@ Tu peux déployer ce dossier directement sur:
 2. Les signalements passent par la function `submit-report` avec anti-spam basique + triage IA (si `OPENAI_API_KEY` est configure).
 3. Le calcul d'itinéraire passe par la function `route` (clé ORS cachée côté serveur).
 4. Pour gros trafic, n'utilise pas le serveur de tuiles OSM public en direct.
+5. L'assistant public passe par la function `ai-public-chat` (si `OPENAI_API_KEY` est configuré).
 
 ## 8) Focus Camayenne
 
@@ -148,12 +150,14 @@ npx supabase@latest functions deploy submit-report --no-verify-jwt
 npx supabase@latest functions deploy route --no-verify-jwt
 npx supabase@latest functions deploy share-location --no-verify-jwt
 npx supabase@latest functions deploy resolve-share --no-verify-jwt
+npx supabase@latest functions deploy ai-public-chat --no-verify-jwt
 ```
 4. Définir les secrets:
 ```powershell
 npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
 npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
+npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.

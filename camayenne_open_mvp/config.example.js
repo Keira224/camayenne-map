@@ -53,8 +53,11 @@ window.CAMAYENNE_CONFIG = {
     submitReport: "submit-report",
     route: "route",
     shareLocation: "share-location",
-    resolveShare: "resolve-share"
+    resolveShare: "resolve-share",
+    aiPublicChat: "ai-public-chat"
   },
+  aiPublicMaxQuestionLength: 500,
+  aiPublicMaxSuggestions: 5,
   shareLocationTtlMinutes: 30,
   shareLocationPrecisionDecimals: 6,
   shareLocationZoom: 17,

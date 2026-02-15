@@ -62,6 +62,24 @@
         <label><input id="toggleReports" type="checkbox" checked> Afficher signalements</label>
       </section>
 
+      <section class="ai-assistant">
+        <div class="cam-subtitle">Assistant public IA</div>
+        <p class="ai-help">Pose une question: lieu utile, service public, orientation ou aide signalement.</p>
+        <div class="ai-quick-prompts">
+          <button type="button" class="btn btn-secondary ai-quick-btn" data-ai-prompt="Où est la pharmacie la plus proche ?">Pharmacie proche</button>
+          <button type="button" class="btn btn-secondary ai-quick-btn" data-ai-prompt="Comment signaler un problème d'éclairage ?">Signaler éclairage</button>
+          <button type="button" class="btn btn-secondary ai-quick-btn" data-ai-prompt="Je cherche la mairie et la police à Camayenne">Mairie / Police</button>
+        </div>
+        <label for="aiMessageInput">Question</label>
+        <textarea id="aiMessageInput" rows="3" placeholder="Ex: Où trouver un hôpital ouvert à Camayenne ?"></textarea>
+        <div class="row">
+          <button id="btnAiAsk" class="btn btn-primary" type="button">Demander à l'IA</button>
+          <button id="btnAiClear" class="btn btn-secondary" type="button">Effacer</button>
+        </div>
+        <div id="aiStatus" class="status"></div>
+        <div id="aiResponse" class="ai-response" aria-live="polite"></div>
+      </section>
+
       <nav class="tabs">
         <button class="tab is-active" data-tab="search" type="button">Rechercher</button>
         <button class="tab" data-tab="add" type="button">Ajouter lieu</button>

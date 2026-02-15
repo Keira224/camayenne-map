@@ -86,6 +86,7 @@
     lastShareUrl: null,
     lastShareExpiresAt: null,
     toastTimer: null,
+    aiLastResponse: null,
     nav: {
       active: false,
       watchId: null,
@@ -139,6 +140,12 @@
     btnResetSearch: document.getElementById("btnResetSearch"),
     searchResults: document.getElementById("searchResults"),
     searchStatus: document.getElementById("searchStatus"),
+    aiMessageInput: document.getElementById("aiMessageInput"),
+    btnAiAsk: document.getElementById("btnAiAsk"),
+    btnAiClear: document.getElementById("btnAiClear"),
+    aiStatus: document.getElementById("aiStatus"),
+    aiResponse: document.getElementById("aiResponse"),
+    aiQuickButtons: document.querySelectorAll("[data-ai-prompt]"),
     routeFromSelect: document.getElementById("routeFromSelect"),
     routeToSelect: document.getElementById("routeToSelect"),
     routeProfileSelect: document.getElementById("routeProfileSelect"),
@@ -236,6 +243,10 @@
 
   function setShareStatus(message, level) {
     setStatus(dom.shareStatus, message, level);
+  }
+
+  function setAiStatus(message, level) {
+    setStatus(dom.aiStatus, message, level);
   }
 
   function showToast(message) {
@@ -1089,6 +1100,160 @@
     dom.searchResults.innerHTML = "";
     searchFocusLayer.clearLayers();
     setStatus(dom.searchStatus, "", null);
+  }
+
+  function clearAiResponse() {
+    if (!dom.aiResponse) return;
+    dom.aiResponse.innerHTML = "";
+    state.aiLastResponse = null;
+  }
+
+  function buildLocalAiFallback(message) {
+    var query = String(message || "").trim().toLowerCase();
+    var words = query.split(/\s+/).filter(function (w) { return w.length > 2; });
+    var categoryHints = [];
+    if (query.indexOf("pharm") >= 0) categoryHints.push("PHARMACIE");
+    if (query.indexOf("hopit") >= 0 || query.indexOf("hôpital") >= 0) categoryHints.push("HOPITAL");
+    if (query.indexOf("police") >= 0 || query.indexOf("sécur") >= 0 || query.indexOf("secur") >= 0) categoryHints.push("ADMINISTRATION");
+    if (query.indexOf("mairie") >= 0 || query.indexOf("administr") >= 0) categoryHints.push("ADMINISTRATION");
+    if (query.indexOf("ecole") >= 0 || query.indexOf("école") >= 0) categoryHints.push("ECOLE");
+
+    var ranked = state.poi.map(function (row) {
+      var text = [
+        row.name || "",
+        row.category || "",
+        row.address || "",
+        row.description || ""
+      ].join(" ").toLowerCase();
+      var score = 0;
+      words.forEach(function (w) {
+        if (text.indexOf(w) >= 0) score += 2;
+      });
+      if (categoryHints.length && categoryHints.indexOf(row.category) >= 0) score += 3;
+      if (query && (row.name || "").toLowerCase().indexOf(query) >= 0) score += 5;
+      return { row: row, score: score };
+    }).filter(function (item) {
+      return item.score > 0;
+    }).sort(function (a, b) {
+      return b.score - a.score;
+    }).slice(0, cfg.aiPublicMaxSuggestions || 5).map(function (item) {
+      return {
+        id: item.row.id,
+        name: item.row.name,
+        category: item.row.category,
+        address: item.row.address,
+        latitude: Number(item.row.latitude),
+        longitude: Number(item.row.longitude)
+      };
+    });
+
+    var answer = "Je n'ai pas pu contacter le service IA distant. Voici les lieux les plus pertinents trouvés localement.";
+    if (!ranked.length) {
+      answer = "Je n'ai pas trouvé de lieu correspondant. Essaie avec plus de détails (ex: pharmacie, hôpital, mairie, police).";
+    }
+    return {
+      answer: answer,
+      suggestions: ranked
+    };
+  }
+
+  function renderAiResponse(data) {
+    if (!dom.aiResponse) return;
+    dom.aiResponse.innerHTML = "";
+
+    var answerText = data && data.answer ? String(data.answer) : "";
+    var suggestions = data && Array.isArray(data.suggestions) ? data.suggestions : [];
+
+    if (answerText) {
+      var answerNode = document.createElement("div");
+      answerNode.className = "ai-answer";
+      answerNode.textContent = answerText;
+      dom.aiResponse.appendChild(answerNode);
+    }
+
+    suggestions.slice(0, cfg.aiPublicMaxSuggestions || 5).forEach(function (item) {
+      if (!isFinite(Number(item.latitude)) || !isFinite(Number(item.longitude))) return;
+      var row = {
+        id: item.id,
+        name: item.name || "Lieu suggéré",
+        category: item.category || "",
+        address: item.address || "",
+        latitude: Number(item.latitude),
+        longitude: Number(item.longitude)
+      };
+      var card = document.createElement("div");
+      card.className = "ai-suggestion";
+      card.innerHTML =
+        "<div class='ai-suggestion-title'>" + escapeHtml(row.name) + "</div>" +
+        "<div class='ai-suggestion-meta'>" + escapeHtml(row.category) + (row.address ? " | " + escapeHtml(row.address) : "") + "</div>" +
+        "<div class='ai-suggestion-actions'>" +
+          "<button type='button' data-action='zoom'>Voir sur la carte</button>" +
+          "<button type='button' data-action='route'>Itinéraire</button>" +
+        "</div>";
+      var zoomBtn = card.querySelector("[data-action='zoom']");
+      var routeBtn = card.querySelector("[data-action='route']");
+      zoomBtn.addEventListener("click", function () {
+        focusResultOnMap(row);
+        if (isMobileLayout()) {
+          setPanelCollapsed(true);
+        }
+      });
+      routeBtn.addEventListener("click", function () {
+        drawRouteTo(L.latLng(row.latitude, row.longitude));
+        if (isMobileLayout()) {
+          setPanelCollapsed(true);
+        }
+      });
+      dom.aiResponse.appendChild(card);
+    });
+  }
+
+  async function askPublicAssistant() {
+    if (!dom.aiMessageInput) return;
+    var message = dom.aiMessageInput.value.trim();
+    if (!message) {
+      setAiStatus("Saisis une question.", "error");
+      return;
+    }
+    if (message.length > (cfg.aiPublicMaxQuestionLength || 500)) {
+      setAiStatus("Question trop longue.", "error");
+      return;
+    }
+
+    setAiStatus("Analyse en cours...", null);
+    var payload = {
+      message: message,
+      limit: cfg.aiPublicMaxSuggestions || 5,
+      center: center
+    };
+    if (state.currentPosition) {
+      payload.location = {
+        latitude: Number(state.currentPosition.lat),
+        longitude: Number(state.currentPosition.lng),
+        accuracy: state.currentAccuracy == null ? null : Number(state.currentAccuracy)
+      };
+    }
+
+    try {
+      var data;
+      if (cfg.useSecureFunctions && getFunctionsReady()) {
+        var fn = getFunctionName("aiPublicChat", "ai-public-chat");
+        data = await functionFetch(fn, payload);
+      } else {
+        data = buildLocalAiFallback(message);
+      }
+      if (!data || (!data.answer && !data.suggestions)) {
+        data = buildLocalAiFallback(message);
+      }
+      state.aiLastResponse = data;
+      renderAiResponse(data);
+      setAiStatus("Réponse générée.", "success");
+    } catch (err) {
+      var fallback = buildLocalAiFallback(message);
+      state.aiLastResponse = fallback;
+      renderAiResponse(fallback);
+      setAiStatus("IA distante indisponible. Résultats locaux affichés.", "error");
+    }
   }
 
   function getShareTokenFromUrl() {
@@ -2181,6 +2346,41 @@
 
     dom.btnSearch.addEventListener("click", runSearch);
     dom.btnResetSearch.addEventListener("click", clearSearch);
+    if (dom.btnAiAsk) {
+      dom.btnAiAsk.addEventListener("click", function () {
+        askPublicAssistant().catch(function (err) {
+          setAiStatus("Assistant indisponible: " + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnAiClear) {
+      dom.btnAiClear.addEventListener("click", function () {
+        if (dom.aiMessageInput) dom.aiMessageInput.value = "";
+        clearAiResponse();
+        setAiStatus("", null);
+      });
+    }
+    if (dom.aiMessageInput) {
+      dom.aiMessageInput.addEventListener("keydown", function (evt) {
+        if (evt.key === "Enter" && !evt.shiftKey) {
+          evt.preventDefault();
+          askPublicAssistant().catch(function (err) {
+            setAiStatus("Assistant indisponible: " + err.message, "error");
+          });
+        }
+      });
+    }
+    if (dom.aiQuickButtons && dom.aiQuickButtons.length) {
+      dom.aiQuickButtons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (!dom.aiMessageInput) return;
+          dom.aiMessageInput.value = btn.dataset.aiPrompt || "";
+          askPublicAssistant().catch(function (err) {
+            setAiStatus("Assistant indisponible: " + err.message, "error");
+          });
+        });
+      });
+    }
     dom.btnLocate.addEventListener("click", function () {
       locateUser({
         forceFresh: false,
@@ -2322,6 +2522,10 @@
     updateNavigationButtons();
     setCompassVisible(false);
     syncPanelWithViewport(true);
+    if (dom.aiStatus) {
+      setAiStatus("Assistant prêt.", null);
+    }
+    clearAiResponse();
 
     wireEvents();
     if (cfg.lockToFocusBounds !== false) {

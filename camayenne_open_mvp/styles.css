@@ -114,6 +114,85 @@ body {
   font-size: 0.9rem;
 }
 
+.ai-assistant {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(120deg, #f7fcfa, #f4f8ff);
+  padding: 10px;
+}
+
+.ai-help {
+  margin: 6px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.ai-quick-prompts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ai-quick-btn {
+  text-align: left;
+  font-size: 0.8rem;
+  padding: 8px 9px;
+}
+
+.ai-response {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.ai-answer {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.ai-suggestion {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.ai-suggestion-title {
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+
+.ai-suggestion-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.ai-suggestion-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.ai-suggestion-actions button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f2f9f7;
+  padding: 6px 8px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
 .tabs {
   margin-top: 14px;
   display: grid;

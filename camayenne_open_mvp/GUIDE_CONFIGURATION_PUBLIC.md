@@ -26,7 +26,8 @@ allowPoiSubmission: false,
 functionsBaseUrl: "https://aeetsakqivgvrzwxvcdr.supabase.co/functions/v1",
 functionNames: {
   submitReport: "submit-report",
-  route: "route"
+  route: "route",
+  aiPublicChat: "ai-public-chat"
 },
 openRouteServiceApiKey: ""
 ```
@@ -74,6 +75,7 @@ supabase functions deploy submit-report
 supabase functions deploy route
 supabase functions deploy share-location --no-verify-jwt
 supabase functions deploy resolve-share --no-verify-jwt
+supabase functions deploy ai-public-chat --no-verify-jwt
 ```
 
 Si tu veux autoriser les appels publics sans JWT utilisateur:
@@ -83,6 +85,7 @@ supabase functions deploy submit-report --no-verify-jwt
 supabase functions deploy route --no-verify-jwt
 supabase functions deploy share-location --no-verify-jwt
 supabase functions deploy resolve-share --no-verify-jwt
+supabase functions deploy ai-public-chat --no-verify-jwt
 ```
 
 Si tu utilises `npx`:
@@ -92,6 +95,7 @@ npx supabase@latest functions deploy submit-report
 npx supabase@latest functions deploy route
 npx supabase@latest functions deploy share-location --no-verify-jwt
 npx supabase@latest functions deploy resolve-share --no-verify-jwt
+npx supabase@latest functions deploy ai-public-chat --no-verify-jwt
 ```
 
 ---
@@ -110,6 +114,7 @@ Si tu utilises `npx`:
 npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
 npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
+npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
 ```
 
 Pourquoi:
