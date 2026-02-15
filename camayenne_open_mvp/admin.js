@@ -13,6 +13,7 @@
     isAdmin: false,
     poiRows: [],
     reportRows: [],
+    accountRows: [],
     poiPhotoObjectUrl: null,
     removePoiPhotoRequested: false
   };
@@ -28,6 +29,15 @@
     statPoi: document.getElementById("statPoi"),
     statReports: document.getElementById("statReports"),
     statNewReports: document.getElementById("statNewReports"),
+    accountsSection: document.getElementById("accountsSection"),
+    btnReloadAccounts: document.getElementById("btnReloadAccounts"),
+    accountEmail: document.getElementById("accountEmail"),
+    accountFullName: document.getElementById("accountFullName"),
+    accountRole: document.getElementById("accountRole"),
+    accountIsActive: document.getElementById("accountIsActive"),
+    btnCreateAccount: document.getElementById("btnCreateAccount"),
+    accountsStatus: document.getElementById("accountsStatus"),
+    accountsTableBody: document.getElementById("accountsTableBody"),
     reportFilterStatus: document.getElementById("reportFilterStatus"),
     btnReloadReports: document.getElementById("btnReloadReports"),
     reportsStatus: document.getElementById("reportsStatus"),
@@ -70,6 +80,10 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function normalizeEmail(v) {
+    return String(v || "").trim().toLowerCase();
   }
 
   function fmtDate(ts) {
@@ -212,7 +226,7 @@
   async function loadProfile(userId) {
     var response = await app.client
       .from("profiles")
-      .select("user_id, role, full_name")
+      .select("user_id, email, role, full_name, is_active")
       .eq("user_id", userId)
       .maybeSingle();
     if (response.error) throw response.error;
@@ -223,6 +237,9 @@
     dom.authCard.hidden = !!connected;
     dom.btnSignOut.hidden = !connected;
     dom.adminApp.hidden = !(connected && isAdmin);
+    if (dom.accountsSection) {
+      dom.accountsSection.hidden = true;
+    }
   }
 
   async function refreshStats() {
@@ -403,6 +420,157 @@
     setStatus(dom.poiListStatus, app.poiRows.length + " POI.", "success");
   }
 
+  function renderAccountsTable(rows) {
+    if (!dom.accountsTableBody) return;
+    dom.accountsTableBody.innerHTML = "";
+    if (!rows || !rows.length) {
+      var empty = document.createElement("tr");
+      empty.innerHTML = "<td colspan='5'>Aucun compte.</td>";
+      dom.accountsTableBody.appendChild(empty);
+      return;
+    }
+
+    rows.forEach(function (row) {
+      var tr = document.createElement("tr");
+      var isSelf = !!(app.user && row.user_id === app.user.id);
+      var roleValue = String(row.role || "agent");
+      var fullName = row.full_name || "";
+      var email = row.email || "";
+      var isActive = row.is_active !== false;
+      var deleteButton = isSelf
+        ? "<button class='btn btn-danger' type='button' disabled>Retirer accès</button>"
+        : "<button class='btn btn-danger' type='button' data-action='account-delete' data-email='" + escapeHtml(email) + "'>Retirer accès</button>";
+
+      tr.innerHTML =
+        "<td>" + escapeHtml(email) + (isSelf ? " <small>(vous)</small>" : "") + "</td>" +
+        "<td><input type='text' data-action='account-name' data-id='" + row.user_id + "' value='" + escapeHtml(fullName) + "'></td>" +
+        "<td>" +
+          "<select data-action='account-role' data-id='" + row.user_id + "'>" +
+            "<option value='admin'" + (roleValue === "admin" ? " selected" : "") + ">admin</option>" +
+            "<option value='agent'" + (roleValue === "agent" ? " selected" : "") + ">agent</option>" +
+          "</select>" +
+        "</td>" +
+        "<td><input type='checkbox' data-action='account-active' data-id='" + row.user_id + "'" + (isActive ? " checked" : "") + "></td>" +
+        "<td class='actions'>" +
+          "<button class='btn btn-primary' type='button' data-action='account-save' data-id='" + row.user_id + "'>Enregistrer</button> " +
+          deleteButton +
+        "</td>";
+      dom.accountsTableBody.appendChild(tr);
+    });
+  }
+
+  async function loadAccounts() {
+    if (!app.isAdmin || !dom.accountsStatus) return;
+    setStatus(dom.accountsStatus, "Chargement comptes...", null);
+    var response = await app.client
+      .from("profiles")
+      .select("user_id, email, full_name, role, is_active, created_at")
+      .order("created_at", { ascending: false });
+    if (response.error) {
+      setStatus(dom.accountsStatus, "Erreur: " + response.error.message, "error");
+      return;
+    }
+    app.accountRows = response.data || [];
+    renderAccountsTable(app.accountRows);
+    setStatus(dom.accountsStatus, app.accountRows.length + " compte(s).", "success");
+  }
+
+  async function updateAccount(userId, nameValue, roleValue, activeValue) {
+    if (!app.isAdmin) {
+      setStatus(dom.accountsStatus, "Action réservée aux admins.", "error");
+      return;
+    }
+    var role = String(roleValue || "").toLowerCase();
+    if (role !== "admin" && role !== "agent") {
+      setStatus(dom.accountsStatus, "Rôle invalide.", "error");
+      return;
+    }
+    var isActive = !!activeValue;
+    var isSelf = !!(app.user && userId === app.user.id);
+    if (isSelf && (!isActive || role !== "admin")) {
+      setStatus(dom.accountsStatus, "Tu ne peux pas te retirer ton rôle admin ici.", "error");
+      return;
+    }
+    var payload = {
+      full_name: String(nameValue || "").trim() || null,
+      role: role,
+      is_active: isActive
+    };
+    var response = await app.client
+      .from("profiles")
+      .update(payload)
+      .eq("user_id", userId);
+    if (response.error) {
+      setStatus(dom.accountsStatus, "Erreur: " + response.error.message, "error");
+      return;
+    }
+    setStatus(dom.accountsStatus, "Compte mis à jour.", "success");
+    await loadAccounts();
+  }
+
+  async function upsertAccountByEmail() {
+    if (!app.isAdmin) {
+      setStatus(dom.accountsStatus, "Action réservée aux admins.", "error");
+      return;
+    }
+    var email = normalizeEmail(dom.accountEmail ? dom.accountEmail.value : "");
+    var fullName = dom.accountFullName ? dom.accountFullName.value.trim() : "";
+    var role = String(dom.accountRole ? dom.accountRole.value : "").toLowerCase();
+    var isActive = String(dom.accountIsActive ? dom.accountIsActive.value : "true") !== "false";
+
+    if (!email) {
+      setStatus(dom.accountsStatus, "Email obligatoire.", "error");
+      return;
+    }
+    if (role !== "admin" && role !== "agent") {
+      setStatus(dom.accountsStatus, "Rôle invalide.", "error");
+      return;
+    }
+
+    setStatus(dom.accountsStatus, "Enregistrement du compte...", null);
+    var rpcRes = await app.client.rpc("set_user_role", {
+      p_email: email,
+      p_full_name: fullName || null,
+      p_role: role,
+      p_is_active: isActive
+    });
+    if (rpcRes.error) {
+      setStatus(dom.accountsStatus, "Erreur: " + rpcRes.error.message, "error");
+      return;
+    }
+
+    if (dom.accountEmail) dom.accountEmail.value = "";
+    if (dom.accountFullName) dom.accountFullName.value = "";
+    if (dom.accountRole) dom.accountRole.value = "agent";
+    if (dom.accountIsActive) dom.accountIsActive.value = "true";
+    setStatus(dom.accountsStatus, "Compte ajouté/mis à jour.", "success");
+    await loadAccounts();
+  }
+
+  async function removeAccountAccess(emailValue) {
+    if (!app.isAdmin) {
+      setStatus(dom.accountsStatus, "Action réservée aux admins.", "error");
+      return;
+    }
+    var email = normalizeEmail(emailValue);
+    if (!email) {
+      setStatus(dom.accountsStatus, "Email invalide.", "error");
+      return;
+    }
+    if (!window.confirm("Retirer l'accès de " + email + " ?")) return;
+
+    setStatus(dom.accountsStatus, "Suppression de l'accès...", null);
+    var rpcRes = await app.client.rpc("remove_user_access", {
+      p_email: email
+    });
+    if (rpcRes.error) {
+      setStatus(dom.accountsStatus, "Erreur: " + rpcRes.error.message, "error");
+      return;
+    }
+    setStatus(dom.accountsStatus, "Accès retiré.", "success");
+    await loadAccounts();
+  }
+
   async function savePoi() {
     var editId = dom.poiEditId.value ? Number(dom.poiEditId.value) : null;
     var selectedPhotoFile = dom.poiPhotoFile && dom.poiPhotoFile.files && dom.poiPhotoFile.files.length
@@ -523,7 +691,13 @@
 
   async function loadAdminData() {
     try {
-      await Promise.all([refreshStats(), loadReports(), loadPois()]);
+      var tasks = [refreshStats(), loadReports(), loadPois()];
+      if (app.isAdmin) {
+        tasks.push(loadAccounts());
+      } else if (dom.accountsSection) {
+        dom.accountsSection.hidden = true;
+      }
+      await Promise.all(tasks);
     } catch (err) {
       setStatus(dom.authStatus, "Erreur chargement admin: " + err.message, "error");
     }
@@ -576,17 +750,21 @@
     }
 
     var role = app.profile && app.profile.role ? String(app.profile.role) : "";
-    var isAllowed = role === "admin" || role === "agent";
+    var isActive = !(app.profile && app.profile.is_active === false);
+    var isAllowed = isActive && (role === "admin" || role === "agent");
     app.role = role;
     app.isAdmin = role === "admin";
 
     if (!isAllowed) {
       applyAuthUi(true, false);
-      setStatus(dom.authStatus, "Accès refusé: ce compte n'est ni admin ni agent.", "error");
+      setStatus(dom.authStatus, "Accès refusé: compte inactif ou sans rôle admin/agent.", "error");
       return;
     }
 
     applyAuthUi(true, true);
+    if (dom.accountsSection) {
+      dom.accountsSection.hidden = !app.isAdmin;
+    }
     setStatus(dom.authStatus, "Connecté en " + role + ": " + (app.user.email || ""), "success");
     await loadAdminData();
   }
@@ -610,11 +788,55 @@
       });
     });
 
+    if (dom.btnReloadAccounts) {
+      dom.btnReloadAccounts.addEventListener("click", function () {
+        loadAccounts().catch(function (err) {
+          setStatus(dom.accountsStatus, "Erreur: " + err.message, "error");
+        });
+      });
+    }
+
+    if (dom.btnCreateAccount) {
+      dom.btnCreateAccount.addEventListener("click", function () {
+        upsertAccountByEmail().catch(function (err) {
+          setStatus(dom.accountsStatus, "Erreur: " + err.message, "error");
+        });
+      });
+    }
+
     dom.reportFilterStatus.addEventListener("change", function () {
       loadReports().catch(function (err) {
         setStatus(dom.reportsStatus, "Erreur: " + err.message, "error");
       });
     });
+
+    if (dom.accountsTableBody) {
+      dom.accountsTableBody.addEventListener("click", function (evt) {
+        var target = evt.target;
+        var action = target && target.dataset ? target.dataset.action : "";
+        if (action === "account-delete") {
+          var emailToDelete = target.dataset.email || "";
+          removeAccountAccess(emailToDelete).catch(function (err) {
+            setStatus(dom.accountsStatus, "Erreur: " + err.message, "error");
+          });
+          return;
+        }
+        if (action !== "account-save") return;
+        var userId = target.dataset.id;
+        if (!userId) return;
+
+        var nameInput = dom.accountsTableBody.querySelector("input[data-action='account-name'][data-id='" + userId + "']");
+        var roleSelect = dom.accountsTableBody.querySelector("select[data-action='account-role'][data-id='" + userId + "']");
+        var activeCheckbox = dom.accountsTableBody.querySelector("input[data-action='account-active'][data-id='" + userId + "']");
+        var fullName = nameInput ? nameInput.value : "";
+        var role = roleSelect ? roleSelect.value : "";
+        var isActive = !!(activeCheckbox && activeCheckbox.checked);
+
+        updateAccount(userId, fullName, role, isActive).catch(function (err) {
+          setStatus(dom.accountsStatus, "Erreur: " + err.message, "error");
+        });
+      });
+    }
 
     dom.reportsTableBody.addEventListener("click", function (evt) {
       var target = evt.target;

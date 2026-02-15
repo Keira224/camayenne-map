@@ -6,13 +6,14 @@
   <title>Camayenne Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./admin.css">
 </head>
 <body>
   <div class="admin-shell">
     <header class="admin-header">
       <div>
+        <div class="header-badge">Centre de pilotage</div>
         <h1>Back-office Camayenne</h1>
         <p>Gestion POI, signalements et modération</p>
       </div>
@@ -22,7 +23,7 @@
       </div>
     </header>
 
-    <section id="authCard" class="card">
+    <section id="authCard" class="card auth-card">
       <h2>Connexion admin / agent</h2>
       <label for="loginEmail">Email</label>
       <input id="loginEmail" type="email" placeholder="admin@exemple.com">
@@ -32,24 +33,27 @@
       <div id="authStatus" class="status"></div>
     </section>
 
-    <section id="adminApp" hidden>
+    <section id="adminApp" class="admin-app" hidden>
       <div class="stats">
         <article class="card stat-card">
-          <h3>POI</h3>
+          <h3>Points d'intérêt</h3>
           <div id="statPoi" class="stat-value">-</div>
+          <div class="stat-subtitle">Lieux référencés</div>
         </article>
         <article class="card stat-card">
           <h3>Signalements</h3>
           <div id="statReports" class="stat-value">-</div>
+          <div class="stat-subtitle">Total en base</div>
         </article>
         <article class="card stat-card">
           <h3>Nouveaux signalements</h3>
           <div id="statNewReports" class="stat-value">-</div>
+          <div class="stat-subtitle">À traiter</div>
         </article>
       </div>
 
       <div class="grid-two">
-        <section class="card">
+        <section class="card card-section">
           <div class="section-head">
             <h2>Signalements</h2>
             <div class="head-tools">
@@ -78,7 +82,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card card-section">
           <h2 id="poiFormTitle">Ajouter un POI</h2>
           <input id="poiEditId" type="hidden">
           <label for="poiName">Nom</label>
@@ -115,7 +119,61 @@
         </section>
       </div>
 
-      <section class="card">
+      <section id="accountsSection" class="card card-section" hidden>
+        <div class="section-head">
+          <h2>Comptes utilisateurs</h2>
+          <div class="head-tools">
+            <button id="btnReloadAccounts" class="btn btn-secondary" type="button">Actualiser</button>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="accountEmail">Email</label>
+            <input id="accountEmail" type="email" placeholder="agent@camayenne.gn">
+          </div>
+          <div>
+            <label for="accountFullName">Nom complet</label>
+            <input id="accountFullName" type="text" placeholder="Agent Camayenne">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="accountRole">Rôle</label>
+            <select id="accountRole">
+              <option value="agent">agent</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <div>
+            <label for="accountIsActive">Actif</label>
+            <select id="accountIsActive">
+              <option value="true">oui</option>
+              <option value="false">non</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnCreateAccount" class="btn btn-primary" type="button">Ajouter / Mettre à jour</button>
+        </div>
+        <div class="status">Note: le compte doit exister dans Supabase Auth avant attribution du rôle.</div>
+        <div id="accountsStatus" class="status"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Nom</th>
+                <th>Rôle</th>
+                <th>Actif</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="accountsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card card-section">
         <div class="section-head">
           <h2>Liste des POI</h2>
           <div class="head-tools">

@@ -12,10 +12,6 @@ Dans le terminal (dans `arcOpole_SolutionPlanDeVille`):
 git push main master
 ```
 
-Vérifie que les 2 commits sont en ligne:
-- `fa9c2a0`
-- `a4edb1f`
-
 ---
 
 ## 2) Vérifier la config front
@@ -127,11 +123,12 @@ Pourquoi:
 
 Dans Supabase > SQL Editor:
 
-1. Exécute `camayenne_open_mvp/supabase/hardening_public.sql`
-2. Vérifie ensuite:
+1. Exécute `camayenne_open_mvp/supabase/schema.sql`
+2. Exécute `camayenne_open_mvp/supabase/hardening_public.sql`
+3. Vérifie ensuite:
 - `anon` peut `select` sur `poi` et `reports`
 - `anon` ne peut plus `insert` directement
-- `authenticated` garde l'insert (admin/back-office futur)
+- `authenticated` ne peut pas écrire par défaut (sauf policies spécifiques admin/agent ou Edge Function avec service role)
 
 ---
 
@@ -139,11 +136,13 @@ Dans Supabase > SQL Editor:
 
 Dans Supabase > SQL Editor, si besoin ré-exécuter:
 - `camayenne_open_mvp/supabase/schema.sql`
+- `camayenne_open_mvp/supabase/hardening_public.sql`
 - `camayenne_open_mvp/supabase/location_shares.sql`
 
 Point important:
 - colonne `reports.source_hash` doit exister
 - index `idx_reports_source_hash_created_at` doit exister
+- contraintes qualité sur coordonnées/statuts/types doivent exister
 - table `location_shares` doit exister
 - colonnes IA de `reports` (`ai_suggested_type`, `ai_priority`, `ai_summary`, `ai_confidence`) doivent exister
 
@@ -255,6 +254,19 @@ Si ça bloque, envoie ces 4 éléments:
 Règles de rôles:
 - `admin`: ajout/modification/suppression
 - `agent`: ajout/modification (pas de suppression)
+- `is_active=false`: accès back-office bloqué
 
 6. Si la colonne photo n'existe pas encore:
 - exécute aussi `camayenne_open_mvp/supabase/schema.sql` (ajout `photo_url`, `photo_path`, `photo_taken_at`)
+
+### Gestion rapide des comptes (SQL utilitaire)
+
+Après exécution de `admin_backoffice.sql`, un admin peut gérer les comptes avec:
+
+```sql
+select public.set_user_role('agent@camayenne.gn', 'Agent Camayenne', 'agent', true);
+select public.set_user_role('ousmanekeira224@gmail.com', 'Admin Camayenne', 'admin', true);
+select public.set_user_active('agent@camayenne.gn', false); -- désactiver
+select public.set_user_active('agent@camayenne.gn', true);  -- réactiver
+select public.remove_user_access('agent@camayenne.gn');      -- retirer l'accès back-office
+```
