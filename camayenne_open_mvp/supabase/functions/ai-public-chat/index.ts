@@ -246,6 +246,82 @@ async function generateOpenAiAnswer(params: {
   }
 }
 
+async function generateGeminiAnswer(params: {
+  message: string;
+  suggestions: Array<Record<string, unknown>>;
+  reportSummary: { total: number; byType: Record<string, number> };
+  intent: { isReport: boolean; isRoute: boolean; isPlaceRequest: boolean; asksNearest: boolean };
+}) {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) return null;
+
+  const model = Deno.env.get("GEMINI_MODEL_PUBLIC") || "gemini-2.5-flash-lite";
+  const summaryLines = Object.entries(params.reportSummary.byType)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+  const poiLines = params.suggestions.map((s, i) => {
+    return `${i + 1}. ${s.name} (${s.category}) - ${s.address || "adresse non renseignée"} ${s.distanceText ? "- " + s.distanceText : ""}`;
+  }).join("\n");
+
+  const systemPrompt = [
+    "Tu es l'assistant public de la carte Camayenne (Conakry).",
+    "Réponds en français simple, court, utile et concret.",
+    "N'invente pas de lieux ni de données non présentes.",
+    "Si la question est une procédure (ex: comment signaler), ne propose pas de position ou de coordonnées.",
+    "Si la question concerne un signalement citoyen, explique les étapes dans l'application.",
+    "Si des suggestions de lieux existent, conseille l'action 'Voir sur la carte' ou 'Itinéraire'.",
+    "Si aucune suggestion pertinente, dis clairement qu'aucun lieu correspondant n'a été trouvé.",
+    "Limite la réponse à 5 phrases maximum.",
+  ].join("\n");
+
+  const userPrompt = [
+    `Question citoyen: ${params.message}`,
+    `Intent: report=${params.intent.isReport}; route=${params.intent.isRoute}; place=${params.intent.isPlaceRequest}; nearest=${params.intent.asksNearest}`,
+    `Lieux suggérés:`,
+    poiLines || "Aucun",
+    `Résumé signalements (30 jours): total ${params.reportSummary.total}; ${summaryLines || "aucune donnée"}`,
+  ].join("\n");
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `${systemPrompt}\n\n${userPrompt}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 350,
+        },
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const text = Array.isArray(parts)
+      ? parts.map((p: Record<string, unknown>) => normalizeText(p?.text)).join("\n").trim()
+      : "";
+
+    if (!text) return null;
+    return text.slice(0, 900);
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -379,14 +455,31 @@ Deno.serve(async (req) => {
       byType,
     };
 
-    const shouldUseOpenAI = !(intent.isReport && !intent.isPlaceRequest);
-    const openAiAnswer = shouldUseOpenAI ? await generateOpenAiAnswer({
-      message,
-      suggestions: top,
-      reportSummary,
-      intent,
-    }) : null;
-    const answer = openAiAnswer || buildFallbackAnswer(message, top, reportSummary, intent);
+    const shouldUseLlm = !(intent.isReport && !intent.isPlaceRequest);
+    let llmAnswer: string | null = null;
+    let llmProvider: "none" | "gemini" | "openai" = "none";
+
+    if (shouldUseLlm) {
+      llmAnswer = await generateGeminiAnswer({
+        message,
+        suggestions: top,
+        reportSummary,
+        intent,
+      });
+      if (llmAnswer) {
+        llmProvider = "gemini";
+      } else {
+        llmAnswer = await generateOpenAiAnswer({
+          message,
+          suggestions: top,
+          reportSummary,
+          intent,
+        });
+        if (llmAnswer) llmProvider = "openai";
+      }
+    }
+
+    const answer = llmAnswer || buildFallbackAnswer(message, top, reportSummary, intent);
 
     return json({
       ok: true,
@@ -394,7 +487,9 @@ Deno.serve(async (req) => {
       suggestions: top,
       reportSummary,
       intent,
-      usedOpenAI: !!openAiAnswer,
+      usedGemini: llmProvider === "gemini",
+      usedOpenAI: llmProvider === "openai",
+      llmProvider,
     });
   } catch (err) {
     return json({ error: "Unexpected error", detail: (err as Error).message }, 500);

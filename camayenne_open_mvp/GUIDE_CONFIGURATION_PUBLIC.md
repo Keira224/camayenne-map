@@ -115,12 +115,15 @@ npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
 npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
+npx supabase@latest secrets set GEMINI_API_KEY=<TA_CLE_GEMINI>
+npx supabase@latest secrets set GEMINI_MODEL_PUBLIC=gemini-2.5-flash-lite
 ```
 
 Pourquoi:
 - la clé ORS n'apparaît plus dans le front.
 - les appels passent par `supabase/functions/route`.
 - le triage IA des signalements reste côté serveur.
+- l'assistant public IA essaie d'abord Gemini (si clé configurée), puis OpenAI, puis fallback local.
 
 ---
 

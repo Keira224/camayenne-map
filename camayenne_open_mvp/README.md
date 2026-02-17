@@ -158,6 +158,8 @@ npx supabase@latest secrets set ORS_API_KEY=<TA_CLE_ORS>
 npx supabase@latest secrets set OPENAI_API_KEY=<TA_CLE_OPENAI>
 npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
+npx supabase@latest secrets set GEMINI_API_KEY=<TA_CLE_GEMINI>
+npx supabase@latest secrets set GEMINI_MODEL_PUBLIC=gemini-2.5-flash-lite
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.
@@ -195,3 +197,18 @@ Fonctions disponibles:
 - Ajouter / modifier des POI (admin + agent)
 - Supprimer des POI (admin)
 - Ajouter/supprimer une photo par POI (upload Supabase Storage)
+
+## 14) Dashboard mairie
+
+Fichiers:
+- `mairie.html`
+- `mairie.css`
+- `mairie.js`
+
+Objectif:
+- pilotage municipal sur les signalements (KPI, filtres, carte operationnelle, export CSV)
+- mise a jour rapide du statut (`NOUVEAU`, `EN_COURS`, `RESOLU`)
+- acces reserve aux profils `admin` et `agent` actifs
+
+Acces:
+- ouvre `.../camayenne_open_mvp/mairie.html`

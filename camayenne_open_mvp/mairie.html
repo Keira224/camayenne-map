@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mairie Camayenne - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="./mairie.css">
+</head>
+<body>
+  <div class="city-shell">
+    <header class="city-header">
+      <div class="title-wrap">
+        <div class="badge">Pilotage municipal</div>
+        <h1>Dashboard Mairie - Camayenne</h1>
+        <p>Suivi des signalements, priorisation et traitement opérationnel</p>
+      </div>
+      <div class="header-actions">
+        <span id="userBadge" class="user-badge" hidden></span>
+        <a class="btn btn-soft" href="./index.html">Carte publique</a>
+        <a class="btn btn-soft" href="./admin.html">Back-office admin</a>
+        <button id="btnSignOut" class="btn btn-danger" type="button" hidden>Déconnexion</button>
+      </div>
+    </header>
+
+    <section id="authCard" class="panel auth-panel">
+      <h2>Connexion mairie</h2>
+      <p class="muted">Accès réservé aux profils <code>admin</code> et <code>agent</code> actifs.</p>
+      <div class="auth-grid">
+        <div>
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" placeholder="agent@camayenne.gn">
+        </div>
+        <div>
+          <label for="loginPassword">Mot de passe</label>
+          <input id="loginPassword" type="password" placeholder="********">
+        </div>
+      </div>
+      <div class="auth-actions">
+        <button id="btnSignIn" class="btn btn-primary" type="button">Se connecter</button>
+      </div>
+      <div id="authStatus" class="status"></div>
+    </section>
+
+    <main id="mairieApp" hidden>
+      <section class="kpi-grid">
+        <article class="panel kpi-card">
+          <span class="kpi-label">Signalements total</span>
+          <span id="kpiTotal" class="kpi-value">0</span>
+        </article>
+        <article class="panel kpi-card kpi-new">
+          <span class="kpi-label">Nouveaux</span>
+          <span id="kpiNew" class="kpi-value">0</span>
+        </article>
+        <article class="panel kpi-card kpi-progress">
+          <span class="kpi-label">En cours</span>
+          <span id="kpiInProgress" class="kpi-value">0</span>
+        </article>
+        <article class="panel kpi-card kpi-done">
+          <span class="kpi-label">Résolus</span>
+          <span id="kpiDone" class="kpi-value">0</span>
+        </article>
+        <article class="panel kpi-card kpi-priority">
+          <span class="kpi-label">Priorité IA haute</span>
+          <span id="kpiHighPriority" class="kpi-value">0</span>
+        </article>
+        <article class="panel kpi-card">
+          <span class="kpi-label">POI actifs</span>
+          <span id="kpiPoi" class="kpi-value">0</span>
+        </article>
+      </section>
+
+      <section class="layout-grid">
+        <aside class="panel filters-panel">
+          <div class="panel-head">
+            <h2>Filtres</h2>
+            <button id="btnResetFilters" class="btn btn-soft" type="button">Réinitialiser</button>
+          </div>
+          <label for="filterStatus">Statut</label>
+          <select id="filterStatus">
+            <option value="">Tous</option>
+          </select>
+
+          <label for="filterType">Type</label>
+          <select id="filterType">
+            <option value="">Tous</option>
+          </select>
+
+          <label for="filterPeriod">Période</label>
+          <select id="filterPeriod">
+            <option value="0">Toutes</option>
+            <option value="7">7 derniers jours</option>
+            <option value="30" selected>30 derniers jours</option>
+            <option value="90">90 derniers jours</option>
+          </select>
+
+          <label for="filterText">Recherche</label>
+          <input id="filterText" type="text" placeholder="Titre, description...">
+
+          <div class="panel-head inner-head">
+            <h3>Répartition statuts</h3>
+          </div>
+          <div id="statusBreakdown" class="breakdown-list"></div>
+
+          <div class="panel-head inner-head">
+            <h3>Répartition types</h3>
+          </div>
+          <div id="typeBreakdown" class="breakdown-list"></div>
+        </aside>
+
+        <section class="panel map-panel">
+          <div class="panel-head">
+            <h2>Carte opérationnelle</h2>
+            <div class="head-actions">
+              <button id="btnReloadData" class="btn btn-soft" type="button">Actualiser</button>
+              <button id="btnExportCsv" class="btn btn-primary" type="button">Exporter CSV</button>
+            </div>
+          </div>
+          <div id="mairieMap" class="map-canvas"></div>
+          <div class="map-legend">
+            <span><i class="dot dot-new"></i>NOUVEAU</span>
+            <span><i class="dot dot-progress"></i>EN_COURS</span>
+            <span><i class="dot dot-done"></i>RESOLU</span>
+          </div>
+          <div id="mapStatus" class="status"></div>
+        </section>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-head">
+          <h2>Signalements filtrés</h2>
+          <span id="resultCount" class="muted">0 résultat(s)</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Titre</th>
+                <th>Type</th>
+                <th>Priorité IA</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="reportsTableBody"></tbody>
+          </table>
+        </div>
+        <div id="tableStatus" class="status"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./mairie.js"></script>
+</body>
+</html>
