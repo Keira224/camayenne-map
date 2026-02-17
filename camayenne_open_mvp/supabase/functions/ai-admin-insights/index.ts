@@ -14,6 +14,10 @@ type ReportRow = {
   longitude: number | null;
   created_at: string | null;
   ai_priority: string | null;
+  assigned_service: string | null;
+  assigned_user_id: string | null;
+  assigned_priority: string | null;
+  assigned_due_at: string | null;
 };
 
 function json(body: unknown, status = 200) {
@@ -42,6 +46,15 @@ function countBy(rows: ReportRow[], field: "type" | "status") {
   const out: Record<string, number> = {};
   for (const row of rows) {
     const key = normalizeText(row[field] || "AUTRE").toUpperCase();
+    out[key] = (out[key] || 0) + 1;
+  }
+  return out;
+}
+
+function countByService(rows: ReportRow[]) {
+  const out: Record<string, number> = {};
+  for (const row of rows) {
+    const key = normalizeText(row.assigned_service || "NON_ASSIGNE").toUpperCase();
     out[key] = (out[key] || 0) + 1;
   }
   return out;
@@ -130,6 +143,9 @@ function buildRuleRecommendations(params: {
   total: number;
   byStatus: Record<string, number>;
   byType: Record<string, number>;
+  byService: Record<string, number>;
+  unassigned: number;
+  overdue: number;
   highPriority: number;
   forecast: { trendPct: number; next7: number; next30: number };
   hotspots: Array<{ lat: number; lon: number; count: number }>;
@@ -140,6 +156,12 @@ function buildRuleRecommendations(params: {
 
   if (newCount > inProgress) {
     recs.push("Augmenter la capacite de traitement initial (tri et affectation) pour reduire le stock NOUVEAU.");
+  }
+  if (params.unassigned >= 5) {
+    recs.push("Affecter rapidement les dossiers non assignes pour eviter l'accumulation en attente.");
+  }
+  if (params.overdue >= 3) {
+    recs.push("Traiter les echeances depassees en priorite (retard operationnel detecte).");
   }
   if (params.highPriority >= 3) {
     recs.push("Mettre en place une revue quotidienne des signalements IA 'HIGH' avec priorite intervention 24h.");
@@ -154,6 +176,10 @@ function buildRuleRecommendations(params: {
   if (params.hotspots.length && params.hotspots[0].count >= 3) {
     recs.push("Traiter la zone hotspot prioritaire avec une intervention terrain preventive.");
   }
+  const topService = Object.entries(params.byService).sort((a, b) => b[1] - a[1])[0];
+  if (topService && topService[1] >= 4) {
+    recs.push(`Renforcer temporairement la capacite du service '${topService[0]}' sur la prochaine semaine.`);
+  }
   if (!recs.length) {
     recs.push("Situation stable: maintenir la cadence actuelle et surveiller les nouveaux signalements.");
   }
@@ -165,6 +191,9 @@ async function generateGeminiAdminSummary(params: {
   total: number;
   byStatus: Record<string, number>;
   byType: Record<string, number>;
+  byService: Record<string, number>;
+  unassigned: number;
+  overdue: number;
   highPriority: number;
   forecast: { last7: number; prev7: number; trendPct: number; next7: number; next30: number };
   topTypesForecast: Array<{ type: string; next7: number; trendPct: number }>;
@@ -188,6 +217,9 @@ async function generateGeminiAdminSummary(params: {
     total: params.total,
     byStatus: params.byStatus,
     byType: params.byType,
+    byService: params.byService,
+    unassigned: params.unassigned,
+    overdue: params.overdue,
     highPriority: params.highPriority,
     forecast: params.forecast,
     topTypesForecast: params.topTypesForecast,
@@ -274,7 +306,7 @@ Deno.serve(async (req) => {
 
     const reportsRes = await admin
       .from("reports")
-      .select("id, type, status, latitude, longitude, created_at, ai_priority")
+      .select("id, type, status, latitude, longitude, created_at, ai_priority, assigned_service, assigned_user_id, assigned_priority, assigned_due_at")
       .gte("created_at", sinceIso)
       .limit(8000);
     if (reportsRes.error) {
@@ -284,7 +316,14 @@ Deno.serve(async (req) => {
 
     const byStatus = countBy(rows, "status");
     const byType = countBy(rows, "type");
+    const byService = countByService(rows);
     const highPriority = rows.filter((r) => normalizeText(r.ai_priority).toUpperCase() === "HIGH").length;
+    const unassigned = rows.filter((r) => !normalizeText(r.assigned_service)).length;
+    const overdue = rows.filter((r) => {
+      const due = r.assigned_due_at ? new Date(r.assigned_due_at).getTime() : NaN;
+      const status = normalizeText(r.status).toUpperCase();
+      return Number.isFinite(due) && due < Date.now() && status !== "RESOLU";
+    }).length;
     const forecast = computeForecast(rows);
     const topTypesForecast = computeForecastByType(rows);
     const hotspots = computeHotspots(rows);
@@ -300,6 +339,9 @@ Deno.serve(async (req) => {
       total: rows.length,
       byStatus,
       byType,
+      byService,
+      unassigned,
+      overdue,
       highPriority,
       forecast,
       hotspots,
@@ -310,6 +352,9 @@ Deno.serve(async (req) => {
       total: rows.length,
       byStatus,
       byType,
+      byService,
+      unassigned,
+      overdue,
       highPriority,
       forecast,
       topTypesForecast: topTypesForecast.map((x) => ({ type: x.type, next7: x.next7, trendPct: x.trendPct })),
@@ -325,6 +370,9 @@ Deno.serve(async (req) => {
       total: rows.length,
       byStatus,
       byType,
+      byService,
+      unassigned,
+      overdue,
       highPriority,
       forecast,
       topTypesForecast,

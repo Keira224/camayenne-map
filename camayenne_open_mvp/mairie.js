@@ -4,11 +4,14 @@
   var cfg = window.CAMAYENNE_CONFIG || {};
   var reportStatuses = cfg.reportStatuses || ["NOUVEAU", "EN_COURS", "RESOLU"];
   var reportTypes = cfg.reportTypes || ["VOIRIE", "ECLAIRAGE", "DECHETS", "INONDATION", "SECURITE", "AUTRE"];
+  var serviceOptions = ["VOIRIE", "ECLAIRAGE", "ASSAINISSEMENT", "SECURITE", "INONDATION", "GENERAL", "AUTRE"];
+  var assignmentPriorityOptions = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
   var app = {
     client: null,
     user: null,
     profile: null,
+    operators: [],
     reports: [],
     filteredReports: [],
     poiActiveCount: 0,
@@ -32,9 +35,12 @@
     tableStatus: document.getElementById("tableStatus"),
     filterStatus: document.getElementById("filterStatus"),
     filterType: document.getElementById("filterType"),
+    filterService: document.getElementById("filterService"),
+    filterAssigned: document.getElementById("filterAssigned"),
     filterPeriod: document.getElementById("filterPeriod"),
     filterText: document.getElementById("filterText"),
     btnResetFilters: document.getElementById("btnResetFilters"),
+    btnAutoAssign: document.getElementById("btnAutoAssign"),
     btnReloadData: document.getElementById("btnReloadData"),
     btnExportCsv: document.getElementById("btnExportCsv"),
     aiPeriodDays: document.getElementById("aiPeriodDays"),
@@ -81,8 +87,35 @@
     return d.toLocaleString("fr-FR");
   }
 
+  function toDateTimeInputValue(v) {
+    if (!v) return "";
+    var d = new Date(v);
+    if (isNaN(d.getTime())) return "";
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" +
+      pad(d.getMonth() + 1) + "-" +
+      pad(d.getDate()) + "T" +
+      pad(d.getHours()) + ":" +
+      pad(d.getMinutes());
+  }
+
+  function fromDateTimeInputValue(v) {
+    var value = String(v || "").trim();
+    if (!value) return null;
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
   function normalizeText(v) {
     return String(v || "").trim().toLowerCase();
+  }
+
+  function getOperatorLabel(row) {
+    var name = String(row.full_name || "").trim();
+    var email = String(row.email || "").trim();
+    if (name && email) return name + " (" + email + ")";
+    return name || email || String(row.user_id || "");
   }
 
   function getSupabaseReady() {
@@ -119,6 +152,46 @@
       opt.textContent = v;
       node.appendChild(opt);
     });
+  }
+
+  function renderAssignedFilterOptions() {
+    if (!dom.filterAssigned) return;
+    var previous = dom.filterAssigned.value;
+    dom.filterAssigned.innerHTML = "";
+
+    var all = document.createElement("option");
+    all.value = "";
+    all.textContent = "Tous";
+    dom.filterAssigned.appendChild(all);
+
+    var none = document.createElement("option");
+    none.value = "__NONE__";
+    none.textContent = "Non affecte";
+    dom.filterAssigned.appendChild(none);
+
+    app.operators.forEach(function (op) {
+      var opt = document.createElement("option");
+      opt.value = String(op.user_id || "");
+      opt.textContent = getOperatorLabel(op);
+      dom.filterAssigned.appendChild(opt);
+    });
+
+    if (previous && dom.filterAssigned.querySelector("option[value='" + previous + "']")) {
+      dom.filterAssigned.value = previous;
+    }
+  }
+
+  function buildAgentSelectHtml(selectedValue) {
+    var current = selectedValue == null ? "" : String(selectedValue);
+    var html = "<select data-field='assigned_user_id'>" +
+      "<option value=''>Non affecte</option>";
+    app.operators.forEach(function (op) {
+      var value = String(op.user_id || "");
+      var label = escapeHtml(getOperatorLabel(op));
+      html += "<option value='" + escapeHtml(value) + "'" + (value === current ? " selected" : "") + ">" + label + "</option>";
+    });
+    html += "</select>";
+    return html;
   }
 
   function normalizeFocusPolygon(rawPolygon) {
@@ -193,13 +266,20 @@
     return profile.role === "admin" || profile.role === "agent";
   }
 
+  async function loadOperators() {
+    var rpc = await app.client.rpc("list_active_operators");
+    if (rpc.error) throw rpc.error;
+    app.operators = rpc.data || [];
+    renderAssignedFilterOptions();
+  }
+
   async function loadAllData() {
     setStatus(dom.tableStatus, "Chargement des donnees...", null);
     setStatus(dom.mapStatus, "", null);
 
     var reportsQuery = app.client
       .from("reports")
-      .select("id, title, type, status, description, latitude, longitude, created_at, ai_priority, ai_suggested_type, ai_summary")
+      .select("id, title, type, status, description, latitude, longitude, created_at, ai_priority, ai_suggested_type, ai_summary, assigned_service, assigned_user_id, assigned_priority, assigned_due_at, assignment_source")
       .order("created_at", { ascending: false })
       .limit(1800);
     var poiCountQuery = app.client
@@ -264,6 +344,8 @@
   function getFilteredReports() {
     var status = dom.filterStatus.value;
     var type = dom.filterType.value;
+    var service = dom.filterService ? dom.filterService.value : "";
+    var assigned = dom.filterAssigned ? dom.filterAssigned.value : "";
     var periodDays = Number(dom.filterPeriod.value || 0);
     var text = normalizeText(dom.filterText.value);
     var minDate = null;
@@ -274,12 +356,20 @@
     return app.reports.filter(function (row) {
       if (status && row.status !== status) return false;
       if (type && row.type !== type) return false;
+      if (service && String(row.assigned_service || "") !== service) return false;
+      if (assigned) {
+        if (assigned === "__NONE__") {
+          if (row.assigned_user_id) return false;
+        } else if (String(row.assigned_user_id || "") !== assigned) {
+          return false;
+        }
+      }
       if (minDate) {
         var created = new Date(row.created_at).getTime();
         if (!isFinite(created) || created < minDate) return false;
       }
       if (text) {
-        var blob = normalizeText((row.title || "") + " " + (row.description || "") + " " + (row.ai_summary || ""));
+        var blob = normalizeText((row.title || "") + " " + (row.description || "") + " " + (row.ai_summary || "") + " " + (row.assigned_service || ""));
         if (blob.indexOf(text) < 0) return false;
       }
       return true;
@@ -356,6 +446,8 @@
       marker.bindPopup(
         "<strong>" + escapeHtml(row.title || ("Signalement #" + row.id)) + "</strong><br>" +
         "Type: " + escapeHtml(row.type || "-") + "<br>" +
+        "Service: " + escapeHtml(row.assigned_service || "-") + "<br>" +
+        "Echeance: " + escapeHtml(fmtDate(row.assigned_due_at)) + "<br>" +
         "Statut: " + escapeHtml(row.status || "-") + "<br>" +
         "Date: " + escapeHtml(fmtDate(row.created_at))
       );
@@ -373,13 +465,14 @@
   function renderReportsTable(rows) {
     dom.reportsTableBody.innerHTML = "";
     if (!rows.length) {
-      dom.reportsTableBody.innerHTML = '<tr><td colspan="7">Aucun signalement pour ces filtres.</td></tr>';
+      dom.reportsTableBody.innerHTML = '<tr><td colspan="10">Aucun signalement pour ces filtres.</td></tr>';
       return;
     }
 
     rows.forEach(function (row) {
       var aiPriority = String(row.ai_priority || "").toUpperCase();
       var aiLabel = aiPriority ? aiPriority : "-";
+      var assignedPriority = String(row.assigned_priority || "NORMAL").toUpperCase();
       var tr = document.createElement("tr");
       tr.setAttribute("data-row-id", String(row.id));
       tr.innerHTML =
@@ -387,14 +480,27 @@
         "<td><strong>" + escapeHtml(row.title || "-") + "</strong><br><small>" + escapeHtml(row.description || "") + "</small></td>" +
         "<td>" + escapeHtml(row.type || "-") + "</td>" +
         "<td>" + escapeHtml(aiLabel) + "</td>" +
+        "<td><select data-field='assigned_service'>" +
+        "<option value=''>Non assigne</option>" +
+        serviceOptions.map(function (service) {
+          return "<option value='" + service + "'" + (row.assigned_service === service ? " selected" : "") + ">" + service + "</option>";
+        }).join("") +
+        "</select></td>" +
+        "<td>" + buildAgentSelectHtml(row.assigned_user_id) + "</td>" +
+        "<td><input type='datetime-local' data-field='assigned_due_at' value='" + escapeHtml(toDateTimeInputValue(row.assigned_due_at)) + "'></td>" +
         "<td><select data-field='status'>" +
         reportStatuses.map(function (status) {
           return "<option value='" + status + "'" + (row.status === status ? " selected" : "") + ">" + status + "</option>";
         }).join("") +
-        "</select></td>" +
+        "</select><br><small>Priorite: <select data-field='assigned_priority'>" +
+        assignmentPriorityOptions.map(function (priority) {
+          return "<option value='" + priority + "'" + (assignedPriority === priority ? " selected" : "") + ">" + priority + "</option>";
+        }).join("") +
+        "</select></small></td>" +
         "<td>" + escapeHtml(fmtDate(row.created_at)) + "</td>" +
         "<td><div class='action-row'>" +
         "<button class='btn btn-soft' type='button' data-action='focus' data-id='" + row.id + "'>Voir carte</button>" +
+        "<button class='btn btn-soft' type='button' data-action='auto' data-id='" + row.id + "'>Auto</button>" +
         "<button class='btn btn-primary' type='button' data-action='save' data-id='" + row.id + "'>Sauver</button>" +
         "</div></td>";
       dom.reportsTableBody.appendChild(tr);
@@ -434,12 +540,36 @@
     if (res.error) throw res.error;
   }
 
+  async function applyReportAssignment(params) {
+    var payload = {
+      p_report_id: params.reportId,
+      p_service: params.service || null,
+      p_assigned_user_id: params.assignedUserId || null,
+      p_due_at: params.dueAt || null,
+      p_priority: params.priority || null,
+      p_note: params.note || null,
+      p_source: params.source || "manual"
+    };
+    var rpc = await app.client.rpc("apply_report_assignment", payload);
+    if (rpc.error) throw rpc.error;
+    return rpc.data || null;
+  }
+
+  async function autoAssignOpenReports(limit, onlyUnassigned) {
+    var rpc = await app.client.rpc("auto_assign_open_reports", {
+      p_limit: Number(limit || 40),
+      p_only_unassigned: onlyUnassigned !== false
+    });
+    if (rpc.error) throw rpc.error;
+    return rpc.data || null;
+  }
+
   function exportCsv(rows) {
     if (!rows.length) {
       setStatus(dom.tableStatus, "Aucune ligne a exporter.", "error");
       return;
     }
-    var headers = ["id", "title", "type", "status", "ai_priority", "latitude", "longitude", "created_at", "description"];
+    var headers = ["id", "title", "type", "status", "ai_priority", "assigned_service", "assigned_user_id", "assigned_priority", "assigned_due_at", "assignment_source", "latitude", "longitude", "created_at", "description"];
     var lines = [headers.join(",")];
     rows.forEach(function (row) {
       var vals = headers.map(function (h) {
@@ -517,7 +647,11 @@
         dom.aiSummary.textContent = String(data.summary || "Pas de resume.");
       }
       if (dom.aiMeta) {
-        dom.aiMeta.textContent = "Modele: " + String(data.llmProvider || "rules") + " | Fenetre: " + String(data.periodDays || periodDays) + " jours";
+        dom.aiMeta.textContent =
+          "Modele: " + String(data.llmProvider || "rules") +
+          " | Fenetre: " + String(data.periodDays || periodDays) + " jours" +
+          " | Non assignes: " + Number(data.unassigned || 0) +
+          " | En retard: " + Number(data.overdue || 0);
       }
       renderAiForecast(data);
       renderAiList(dom.aiRecommendations, data.recommendations || [], "Aucune recommandation.");
@@ -549,6 +683,8 @@
   function resetFilters() {
     dom.filterStatus.value = "";
     dom.filterType.value = "";
+    if (dom.filterService) dom.filterService.value = "";
+    if (dom.filterAssigned) dom.filterAssigned.value = "";
     dom.filterPeriod.value = "30";
     dom.filterText.value = "";
     applyFiltersAndRender();
@@ -574,6 +710,13 @@
     setTimeout(function () {
       if (app.map) app.map.invalidateSize();
     }, 80);
+    try {
+      await loadOperators();
+    } catch (err) {
+      app.operators = [];
+      renderAssignedFilterOptions();
+      setStatus(dom.tableStatus, "Info: liste des agents indisponible (verifie intervention_queue.sql).", "error");
+    }
     await loadAllData();
     await runAiInsights();
   }
@@ -617,8 +760,8 @@
       setStatus(dom.authStatus, "Deconnecte.", "success");
     });
 
-    [dom.filterStatus, dom.filterType, dom.filterPeriod].forEach(function (el) {
-      el.addEventListener("change", applyFiltersAndRender);
+    [dom.filterStatus, dom.filterType, dom.filterService, dom.filterAssigned, dom.filterPeriod].forEach(function (el) {
+      if (el) el.addEventListener("change", applyFiltersAndRender);
     });
     dom.filterText.addEventListener("input", applyFiltersAndRender);
 
@@ -626,10 +769,28 @@
     dom.btnReloadData.addEventListener("click", async function () {
       try {
         await loadAllData();
+        await runAiInsights();
       } catch (err) {
         setStatus(dom.tableStatus, "Erreur recharge: " + err.message, "error");
       }
     });
+    if (dom.btnAutoAssign) {
+      dom.btnAutoAssign.addEventListener("click", async function () {
+        dom.btnAutoAssign.disabled = true;
+        setStatus(dom.tableStatus, "Affectation automatique en cours...", null);
+        try {
+          var res = await autoAssignOpenReports(80, true);
+          await loadAllData();
+          await runAiInsights();
+          var processed = res && Number(res.processed || 0);
+          setStatus(dom.tableStatus, "Auto-affectation terminee: " + processed + " dossier(s) traites.", "success");
+        } catch (err) {
+          setStatus(dom.tableStatus, "Echec auto-affectation: " + err.message, "error");
+        } finally {
+          dom.btnAutoAssign.disabled = false;
+        }
+      });
+    }
     dom.btnExportCsv.addEventListener("click", function () {
       exportCsv(app.filteredReports);
     });
@@ -653,21 +814,53 @@
         return;
       }
 
+      if (action === "auto") {
+        var rowAuto = btn.closest("tr");
+        if (!rowAuto) return;
+        var selectedAgentAuto = rowAuto.querySelector("select[data-field='assigned_user_id']");
+        btn.disabled = true;
+        try {
+          await applyReportAssignment({
+            reportId: reportId,
+            assignedUserId: selectedAgentAuto ? selectedAgentAuto.value : null,
+            source: "auto"
+          });
+          await loadAllData();
+          setStatus(dom.tableStatus, "Affectation auto du signalement #" + reportId + " effectuee.", "success");
+        } catch (err) {
+          setStatus(dom.tableStatus, "Echec affectation auto: " + err.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+        return;
+      }
+
       if (action === "save") {
         var row = btn.closest("tr");
         if (!row) return;
-        var select = row.querySelector("select[data-field='status']");
-        if (!select) return;
-        var newStatus = select.value;
+        var statusSelect = row.querySelector("select[data-field='status']");
+        var serviceSelect = row.querySelector("select[data-field='assigned_service']");
+        var assignedUserSelect = row.querySelector("select[data-field='assigned_user_id']");
+        var assignedPrioritySelect = row.querySelector("select[data-field='assigned_priority']");
+        var dueInput = row.querySelector("input[data-field='assigned_due_at']");
+        if (!statusSelect) return;
+        var newStatus = statusSelect.value;
+        var dueIso = fromDateTimeInputValue(dueInput ? dueInput.value : "");
         btn.disabled = true;
         try {
+          await applyReportAssignment({
+            reportId: reportId,
+            service: serviceSelect ? serviceSelect.value : null,
+            assignedUserId: assignedUserSelect ? assignedUserSelect.value : null,
+            priority: assignedPrioritySelect ? assignedPrioritySelect.value : null,
+            dueAt: dueIso,
+            source: "manual"
+          });
           await updateReportStatus(reportId, newStatus);
-          var target = app.reports.find(function (r) { return Number(r.id) === reportId; });
-          if (target) target.status = newStatus;
-          setStatus(dom.tableStatus, "Statut du signalement #" + reportId + " mis a jour.", "success");
-          applyFiltersAndRender();
+          await loadAllData();
+          setStatus(dom.tableStatus, "Affectation + statut du signalement #" + reportId + " enregistres.", "success");
         } catch (err) {
-          setStatus(dom.tableStatus, "Echec mise a jour: " + err.message, "error");
+          setStatus(dom.tableStatus, "Echec sauvegarde: " + err.message, "error");
         } finally {
           btn.disabled = false;
         }
@@ -683,6 +876,8 @@
     app.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
     fillSelect(dom.filterStatus, reportStatuses, true);
     fillSelect(dom.filterType, reportTypes, true);
+    fillSelect(dom.filterService, serviceOptions, true);
+    renderAssignedFilterOptions();
     wireEvents();
     applyAuthUi(false);
 

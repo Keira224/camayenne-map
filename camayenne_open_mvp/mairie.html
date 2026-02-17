@@ -89,6 +89,17 @@
             <option value="">Tous</option>
           </select>
 
+          <label for="filterService">Service affecté</label>
+          <select id="filterService">
+            <option value="">Tous</option>
+          </select>
+
+          <label for="filterAssigned">Agent affecté</label>
+          <select id="filterAssigned">
+            <option value="">Tous</option>
+            <option value="__NONE__">Non affecté</option>
+          </select>
+
           <label for="filterPeriod">Période</label>
           <select id="filterPeriod">
             <option value="0">Toutes</option>
@@ -115,6 +126,7 @@
           <div class="panel-head">
             <h2>Carte opérationnelle</h2>
             <div class="head-actions">
+              <button id="btnAutoAssign" class="btn btn-soft" type="button">Auto-affecter</button>
               <button id="btnReloadData" class="btn btn-soft" type="button">Actualiser</button>
               <button id="btnExportCsv" class="btn btn-primary" type="button">Exporter CSV</button>
             </div>
@@ -142,6 +154,9 @@
                 <th>Titre</th>
                 <th>Type</th>
                 <th>Priorité IA</th>
+                <th>Service</th>
+                <th>Agent</th>
+                <th>Échéance</th>
                 <th>Statut</th>
                 <th>Date</th>
                 <th>Actions</th>

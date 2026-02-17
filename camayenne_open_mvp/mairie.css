@@ -211,6 +211,7 @@ body {
 .head-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 label {
@@ -419,6 +420,13 @@ td {
   text-align: left;
   font-size: 0.83rem;
   vertical-align: top;
+}
+
+td select,
+td input[type="datetime-local"] {
+  min-width: 130px;
+  padding: 6px 7px;
+  font-size: 0.78rem;
 }
 
 th {

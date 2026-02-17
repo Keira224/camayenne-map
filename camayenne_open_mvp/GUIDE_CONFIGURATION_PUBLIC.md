@@ -139,7 +139,8 @@ Dans Supabase > SQL Editor:
 
 1. Exécute `camayenne_open_mvp/supabase/schema.sql`
 2. Exécute `camayenne_open_mvp/supabase/hardening_public.sql`
-3. Vérifie ensuite:
+3. Exécute `camayenne_open_mvp/supabase/intervention_queue.sql` (Phase 2 mairie)
+4. Vérifie ensuite:
 - `anon` peut `select` sur `poi` et `reports`
 - `anon` ne peut plus `insert` directement
 - `authenticated` ne peut pas écrire par défaut (sauf policies spécifiques admin/agent ou Edge Function avec service role)
@@ -152,6 +153,7 @@ Dans Supabase > SQL Editor, si besoin ré-exécuter:
 - `camayenne_open_mvp/supabase/schema.sql`
 - `camayenne_open_mvp/supabase/hardening_public.sql`
 - `camayenne_open_mvp/supabase/location_shares.sql`
+- `camayenne_open_mvp/supabase/intervention_queue.sql`
 
 Point important:
 - colonne `reports.source_hash` doit exister
@@ -159,6 +161,9 @@ Point important:
 - contraintes qualité sur coordonnées/statuts/types doivent exister
 - table `location_shares` doit exister
 - colonnes IA de `reports` (`ai_suggested_type`, `ai_priority`, `ai_summary`, `ai_confidence`) doivent exister
+- colonnes affectation de `reports` (`assigned_service`, `assigned_user_id`, `assigned_priority`, `assigned_due_at`) doivent exister
+- table `report_assignments` doit exister
+- RPC `list_active_operators`, `apply_report_assignment`, `auto_assign_open_reports` doivent exister
 
 ---
 
@@ -284,3 +289,27 @@ select public.set_user_active('agent@camayenne.gn', false); -- désactiver
 select public.set_user_active('agent@camayenne.gn', true);  -- réactiver
 select public.remove_user_access('agent@camayenne.gn');      -- retirer l'accès back-office
 ```
+
+## 13) Activer le dashboard mairie (Phase 2)
+
+1. Vérifie que ces fichiers sont bien publiés:
+- `camayenne_open_mvp/mairie.html`
+- `camayenne_open_mvp/mairie.css`
+- `camayenne_open_mvp/mairie.js`
+
+2. Déploie les fonctions:
+```powershell
+npx supabase@latest functions deploy ai-admin-insights --no-verify-jwt
+```
+
+3. Assure les scripts SQL:
+- `camayenne_open_mvp/supabase/admin_backoffice.sql`
+- `camayenne_open_mvp/supabase/intervention_queue.sql`
+
+4. Ouvre:
+- `https://keira224.github.io/camayenne-map/camayenne_open_mvp/mairie.html`
+
+5. Tests Phase 2:
+- bouton `Auto-affecter` crée des affectations automatiques pour les `NOUVEAU`
+- sauvegarde manuelle service/agent/echéance fonctionne
+- section `Analyse IA mairie` se met à jour après affectation

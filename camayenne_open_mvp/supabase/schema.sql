@@ -49,6 +49,14 @@ create table if not exists public.reports (
   ai_reason text,
   ai_model text,
   ai_processed_at timestamptz,
+  assigned_service text,
+  assigned_user_id uuid,
+  assigned_priority text default 'NORMAL',
+  assigned_due_at timestamptz,
+  assigned_note text,
+  assigned_at timestamptz,
+  assigned_by uuid,
+  assignment_source text default 'manual',
   created_at timestamptz default now()
 );
 
@@ -59,6 +67,14 @@ alter table public.reports add column if not exists ai_confidence double precisi
 alter table public.reports add column if not exists ai_reason text;
 alter table public.reports add column if not exists ai_model text;
 alter table public.reports add column if not exists ai_processed_at timestamptz;
+alter table public.reports add column if not exists assigned_service text;
+alter table public.reports add column if not exists assigned_user_id uuid;
+alter table public.reports add column if not exists assigned_priority text default 'NORMAL';
+alter table public.reports add column if not exists assigned_due_at timestamptz;
+alter table public.reports add column if not exists assigned_note text;
+alter table public.reports add column if not exists assigned_at timestamptz;
+alter table public.reports add column if not exists assigned_by uuid;
+alter table public.reports add column if not exists assignment_source text default 'manual';
 
 alter table public.reports drop constraint if exists reports_type_check;
 alter table public.reports
@@ -74,6 +90,30 @@ alter table public.reports drop constraint if exists reports_ai_priority_check;
 alter table public.reports
 add constraint reports_ai_priority_check
 check (ai_priority is null or ai_priority in ('LOW', 'MEDIUM', 'HIGH'));
+
+alter table public.reports drop constraint if exists reports_assigned_service_check;
+alter table public.reports
+add constraint reports_assigned_service_check
+check (
+  assigned_service is null
+  or assigned_service in ('VOIRIE', 'ECLAIRAGE', 'ASSAINISSEMENT', 'SECURITE', 'INONDATION', 'GENERAL', 'AUTRE')
+);
+
+alter table public.reports drop constraint if exists reports_assigned_priority_check;
+alter table public.reports
+add constraint reports_assigned_priority_check
+check (
+  assigned_priority is null
+  or assigned_priority in ('LOW', 'NORMAL', 'HIGH', 'URGENT')
+);
+
+alter table public.reports drop constraint if exists reports_assignment_source_check;
+alter table public.reports
+add constraint reports_assignment_source_check
+check (
+  assignment_source is null
+  or assignment_source in ('manual', 'auto', 'ai')
+);
 
 alter table public.reports drop constraint if exists reports_latitude_range_check;
 alter table public.reports
@@ -96,6 +136,12 @@ on public.reports (type, status, created_at desc);
 
 create index if not exists idx_reports_status_created_at
 on public.reports (status, created_at desc);
+
+create index if not exists idx_reports_assigned_service_status
+on public.reports (assigned_service, status, created_at desc);
+
+create index if not exists idx_reports_assigned_user_status
+on public.reports (assigned_user_id, status, created_at desc);
 
 alter table public.poi enable row level security;
 alter table public.reports enable row level security;
