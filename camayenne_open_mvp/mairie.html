@@ -152,6 +152,40 @@
         </div>
         <div id="tableStatus" class="status"></div>
       </section>
+
+      <section class="panel ai-panel">
+        <div class="panel-head">
+          <h2>Analyse IA mairie</h2>
+          <div class="head-actions">
+            <select id="aiPeriodDays">
+              <option value="7">7 jours</option>
+              <option value="30" selected>30 jours</option>
+              <option value="90">90 jours</option>
+            </select>
+            <button id="btnRunAiInsights" class="btn btn-primary" type="button">Analyser</button>
+          </div>
+        </div>
+        <div id="aiStatus" class="status"></div>
+        <div class="ai-grid">
+          <article class="ai-card">
+            <h3>Résumé exécutif</h3>
+            <p id="aiSummary" class="muted">Aucune analyse pour le moment.</p>
+            <p id="aiMeta" class="muted"></p>
+          </article>
+          <article class="ai-card">
+            <h3>Prévision</h3>
+            <div id="aiForecast" class="forecast-list"></div>
+          </article>
+          <article class="ai-card">
+            <h3>Actions recommandées</h3>
+            <ul id="aiRecommendations" class="ai-list"></ul>
+          </article>
+          <article class="ai-card">
+            <h3>Hotspots</h3>
+            <ul id="aiHotspots" class="ai-list"></ul>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 

@@ -151,6 +151,7 @@ npx supabase@latest functions deploy route --no-verify-jwt
 npx supabase@latest functions deploy share-location --no-verify-jwt
 npx supabase@latest functions deploy resolve-share --no-verify-jwt
 npx supabase@latest functions deploy ai-public-chat --no-verify-jwt
+npx supabase@latest functions deploy ai-admin-insights --no-verify-jwt
 ```
 4. Définir les secrets:
 ```powershell
@@ -160,6 +161,7 @@ npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
 npx supabase@latest secrets set GEMINI_API_KEY=<TA_CLE_GEMINI>
 npx supabase@latest secrets set GEMINI_MODEL_PUBLIC=gemini-2.5-flash-lite
+npx supabase@latest secrets set GEMINI_MODEL_ADMIN=gemini-2.5-flash-lite
 ```
 5. Appliquer le durcissement RLS:
 - Exécuter `supabase/hardening_public.sql` dans SQL Editor.
@@ -209,6 +211,7 @@ Objectif:
 - pilotage municipal sur les signalements (KPI, filtres, carte operationnelle, export CSV)
 - mise a jour rapide du statut (`NOUVEAU`, `EN_COURS`, `RESOLU`)
 - acces reserve aux profils `admin` et `agent` actifs
+- analyse IA mairie + prevision 7/30 jours via `ai-admin-insights`
 
 Acces:
 - ouvre `.../camayenne_open_mvp/mairie.html`

@@ -27,7 +27,8 @@ functionsBaseUrl: "https://aeetsakqivgvrzwxvcdr.supabase.co/functions/v1",
 functionNames: {
   submitReport: "submit-report",
   route: "route",
-  aiPublicChat: "ai-public-chat"
+  aiPublicChat: "ai-public-chat",
+  aiAdminInsights: "ai-admin-insights"
 },
 openRouteServiceApiKey: ""
 ```
@@ -76,6 +77,7 @@ supabase functions deploy route
 supabase functions deploy share-location --no-verify-jwt
 supabase functions deploy resolve-share --no-verify-jwt
 supabase functions deploy ai-public-chat --no-verify-jwt
+supabase functions deploy ai-admin-insights --no-verify-jwt
 ```
 
 Si tu veux autoriser les appels publics sans JWT utilisateur:
@@ -86,6 +88,7 @@ supabase functions deploy route --no-verify-jwt
 supabase functions deploy share-location --no-verify-jwt
 supabase functions deploy resolve-share --no-verify-jwt
 supabase functions deploy ai-public-chat --no-verify-jwt
+supabase functions deploy ai-admin-insights --no-verify-jwt
 ```
 
 Si tu utilises `npx`:
@@ -96,6 +99,7 @@ npx supabase@latest functions deploy route
 npx supabase@latest functions deploy share-location --no-verify-jwt
 npx supabase@latest functions deploy resolve-share --no-verify-jwt
 npx supabase@latest functions deploy ai-public-chat --no-verify-jwt
+npx supabase@latest functions deploy ai-admin-insights --no-verify-jwt
 ```
 
 ---
@@ -117,6 +121,7 @@ npx supabase@latest secrets set OPENAI_MODEL=gpt-4.1-mini
 npx supabase@latest secrets set OPENAI_MODEL_PUBLIC=gpt-4.1-mini
 npx supabase@latest secrets set GEMINI_API_KEY=<TA_CLE_GEMINI>
 npx supabase@latest secrets set GEMINI_MODEL_PUBLIC=gemini-2.5-flash-lite
+npx supabase@latest secrets set GEMINI_MODEL_ADMIN=gemini-2.5-flash-lite
 ```
 
 Pourquoi:
@@ -124,6 +129,7 @@ Pourquoi:
 - les appels passent par `supabase/functions/route`.
 - le triage IA des signalements reste côté serveur.
 - l'assistant public IA essaie d'abord Gemini (si clé configurée), puis OpenAI, puis fallback local.
+- l'analyse IA mairie passe par `supabase/functions/ai-admin-insights`.
 
 ---
 

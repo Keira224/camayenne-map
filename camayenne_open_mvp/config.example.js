@@ -54,7 +54,8 @@ window.CAMAYENNE_CONFIG = {
     route: "route",
     shareLocation: "share-location",
     resolveShare: "resolve-share",
-    aiPublicChat: "ai-public-chat"
+    aiPublicChat: "ai-public-chat",
+    aiAdminInsights: "ai-admin-insights"
   },
   aiPublicMaxQuestionLength: 500,
   aiPublicMaxSuggestions: 5,

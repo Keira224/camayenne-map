@@ -37,6 +37,14 @@
     btnResetFilters: document.getElementById("btnResetFilters"),
     btnReloadData: document.getElementById("btnReloadData"),
     btnExportCsv: document.getElementById("btnExportCsv"),
+    aiPeriodDays: document.getElementById("aiPeriodDays"),
+    btnRunAiInsights: document.getElementById("btnRunAiInsights"),
+    aiStatus: document.getElementById("aiStatus"),
+    aiSummary: document.getElementById("aiSummary"),
+    aiMeta: document.getElementById("aiMeta"),
+    aiForecast: document.getElementById("aiForecast"),
+    aiRecommendations: document.getElementById("aiRecommendations"),
+    aiHotspots: document.getElementById("aiHotspots"),
     reportsTableBody: document.getElementById("reportsTableBody"),
     resultCount: document.getElementById("resultCount"),
     kpiTotal: document.getElementById("kpiTotal"),
@@ -79,6 +87,11 @@
 
   function getSupabaseReady() {
     return !!(cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase && window.supabase.createClient);
+  }
+
+  function getFunctionName(key, fallbackName) {
+    if (cfg.functionNames && cfg.functionNames[key]) return cfg.functionNames[key];
+    return fallbackName;
   }
 
   function applyAuthUi(isConnected) {
@@ -205,6 +218,47 @@
     app.poiActiveCount = Number(poiCountRes.count || 0);
     applyFiltersAndRender();
     setStatus(dom.tableStatus, "Donnees mises a jour.", "success");
+  }
+
+  async function callFunction(functionName, payload) {
+    var sessionRes = await app.client.auth.getSession();
+    var accessToken = sessionRes && sessionRes.data && sessionRes.data.session
+      ? sessionRes.data.session.access_token
+      : null;
+
+    if (cfg.functionsBaseUrl) {
+      var fnUrl = cfg.functionsBaseUrl.replace(/\/+$/, "") + "/" + functionName;
+      var headers = {
+        "Content-Type": "application/json",
+        apikey: cfg.supabaseAnonKey
+      };
+      if (accessToken) {
+        headers.Authorization = "Bearer " + accessToken;
+      } else {
+        headers.Authorization = "Bearer " + cfg.supabaseAnonKey;
+      }
+
+      var res = await fetch(fnUrl, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload || {})
+      });
+      var text = await res.text();
+      var data = null;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (_) {
+        data = { raw: text };
+      }
+      if (!res.ok) {
+        throw new Error("Function HTTP " + res.status + " - " + (data && (data.error || data.detail || text) || "Erreur"));
+      }
+      return data;
+    }
+
+    var invokeRes = await app.client.functions.invoke(functionName, { body: payload || {} });
+    if (invokeRes.error) throw invokeRes.error;
+    return invokeRes.data || {};
   }
 
   function getFilteredReports() {
@@ -408,6 +462,78 @@
     setStatus(dom.tableStatus, "Export CSV termine.", "success");
   }
 
+  function renderAiList(node, items, emptyText) {
+    if (!node) return;
+    node.innerHTML = "";
+    if (!items || !items.length) {
+      node.innerHTML = "<li>" + escapeHtml(emptyText || "Aucune donnee.") + "</li>";
+      return;
+    }
+    items.forEach(function (item) {
+      var li = document.createElement("li");
+      li.textContent = String(item);
+      node.appendChild(li);
+    });
+  }
+
+  function renderAiForecast(data) {
+    if (!dom.aiForecast) return;
+    dom.aiForecast.innerHTML = "";
+    var forecast = data && data.forecast ? data.forecast : null;
+    var top = data && Array.isArray(data.topTypesForecast) ? data.topTypesForecast : [];
+    if (!forecast) {
+      dom.aiForecast.innerHTML = "<div class='muted'>Aucune prevision.</div>";
+      return;
+    }
+
+    var global = document.createElement("div");
+    global.className = "forecast-item";
+    global.innerHTML =
+      "<span>Global</span>" +
+      "<strong>J+7: " + Number(forecast.next7 || 0) + " | J+30: " + Number(forecast.next30 || 0) + " | Tendance: " + Number(forecast.trendPct || 0) + "%</strong>";
+    dom.aiForecast.appendChild(global);
+
+    top.slice(0, 5).forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "forecast-item";
+      item.innerHTML =
+        "<span>" + escapeHtml(row.type || "AUTRE") + "</span>" +
+        "<strong>J+7: " + Number(row.next7 || 0) + " | Tendance: " + Number(row.trendPct || 0) + "%</strong>";
+      dom.aiForecast.appendChild(item);
+    });
+  }
+
+  async function runAiInsights() {
+    setStatus(dom.aiStatus, "Analyse IA en cours...", null);
+    try {
+      var fn = getFunctionName("aiAdminInsights", "ai-admin-insights");
+      var periodDays = Number(dom.aiPeriodDays && dom.aiPeriodDays.value ? dom.aiPeriodDays.value : 30);
+      var data = await callFunction(fn, { periodDays: periodDays });
+      if (!data || data.ok !== true) {
+        throw new Error("Reponse IA invalide");
+      }
+
+      if (dom.aiSummary) {
+        dom.aiSummary.textContent = String(data.summary || "Pas de resume.");
+      }
+      if (dom.aiMeta) {
+        dom.aiMeta.textContent = "Modele: " + String(data.llmProvider || "rules") + " | Fenetre: " + String(data.periodDays || periodDays) + " jours";
+      }
+      renderAiForecast(data);
+      renderAiList(dom.aiRecommendations, data.recommendations || [], "Aucune recommandation.");
+
+      var hotspots = Array.isArray(data.hotspots)
+        ? data.hotspots.map(function (h) {
+          return "Zone " + Number(h.lat).toFixed(3) + ", " + Number(h.lon).toFixed(3) + " | " + Number(h.count || 0) + " cas";
+        })
+        : [];
+      renderAiList(dom.aiHotspots, hotspots, "Aucun hotspot detecte.");
+      setStatus(dom.aiStatus, "Analyse IA terminee.", "success");
+    } catch (err) {
+      setStatus(dom.aiStatus, "Erreur analyse IA: " + err.message, "error");
+    }
+  }
+
   function applyFiltersAndRender() {
     app.filteredReports = getFilteredReports();
     renderKpis(app.filteredReports);
@@ -449,6 +575,7 @@
       if (app.map) app.map.invalidateSize();
     }, 80);
     await loadAllData();
+    await runAiInsights();
   }
 
   async function tryRestoreSession() {
@@ -506,6 +633,13 @@
     dom.btnExportCsv.addEventListener("click", function () {
       exportCsv(app.filteredReports);
     });
+    if (dom.btnRunAiInsights) {
+      dom.btnRunAiInsights.addEventListener("click", function () {
+        runAiInsights().catch(function (err) {
+          setStatus(dom.aiStatus, "Erreur analyse IA: " + err.message, "error");
+        });
+      });
+    }
 
     dom.reportsTableBody.addEventListener("click", async function (evt) {
       var btn = evt.target.closest("button[data-action]");
