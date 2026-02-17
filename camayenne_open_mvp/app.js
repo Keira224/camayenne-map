@@ -1110,31 +1110,80 @@
 
   function buildLocalAiFallback(message) {
     var query = String(message || "").trim().toLowerCase();
-    var words = query.split(/\s+/).filter(function (w) { return w.length > 2; });
+    var stopWords = {
+      "dans": true, "avec": true, "pour": true, "sans": true, "vers": true, "sur": true, "sous": true,
+      "entre": true, "depuis": true, "par": true, "est": true, "comment": true, "quand": true, "quel": true,
+      "quelle": true, "quels": true, "quelles": true, "peux": true, "peut": true, "pouvez": true,
+      "veux": true, "veut": true, "plus": true, "moins": true, "camayenne": true, "conakry": true
+    };
+    var words = query.split(/\s+/).filter(function (w) {
+      return w.length > 2 && !stopWords[w];
+    });
     var categoryHints = [];
     if (query.indexOf("pharm") >= 0) categoryHints.push("PHARMACIE");
     if (query.indexOf("hopit") >= 0 || query.indexOf("hôpital") >= 0) categoryHints.push("HOPITAL");
     if (query.indexOf("police") >= 0 || query.indexOf("sécur") >= 0 || query.indexOf("secur") >= 0) categoryHints.push("ADMINISTRATION");
     if (query.indexOf("mairie") >= 0 || query.indexOf("administr") >= 0) categoryHints.push("ADMINISTRATION");
     if (query.indexOf("ecole") >= 0 || query.indexOf("école") >= 0) categoryHints.push("ECOLE");
+    if (query.indexOf("mosquée") >= 0 || query.indexOf("mosquee") >= 0) categoryHints.push("MOSQUEE");
+    if (query.indexOf("banque") >= 0 || query.indexOf("atm") >= 0) categoryHints.push("BANQUE_ATM");
+    if (query.indexOf("restaurant") >= 0 || query.indexOf("manger") >= 0) categoryHints.push("RESTAURANT");
+
+    var isReportIntent = query.indexOf("signaler") >= 0 || query.indexOf("signalement") >= 0 ||
+      query.indexOf("incident") >= 0 || query.indexOf("probl") >= 0;
+    var isRouteIntent = query.indexOf("itin") >= 0 || query.indexOf("route") >= 0 ||
+      query.indexOf("trajet") >= 0 || query.indexOf("guidage") >= 0;
+    var isPlaceHint = query.indexOf("où") >= 0 || query.indexOf("ou ") >= 0 || query.indexOf("trouver") >= 0 ||
+      query.indexOf("proche") >= 0 || query.indexOf("près") >= 0 || query.indexOf("pres") >= 0 ||
+      query.indexOf("adresse") >= 0;
+    var isPlaceIntent = categoryHints.length > 0 || isRouteIntent || isPlaceHint;
+    var asksNearest = query.indexOf("plus proche") >= 0 || query.indexOf("proche") >= 0 ||
+      query.indexOf("près") >= 0 || query.indexOf("pres") >= 0;
+
+    if (isReportIntent && !isPlaceIntent) {
+      return {
+        answer: "Pour signaler: ouvre l'onglet 'Signaler', choisis le type, place le point sur la carte puis valide.",
+        suggestions: []
+      };
+    }
 
     var ranked = state.poi.map(function (row) {
-      var text = [
-        row.name || "",
-        row.category || "",
-        row.address || "",
-        row.description || ""
-      ].join(" ").toLowerCase();
+      if (!isFinite(Number(row.latitude)) || !isFinite(Number(row.longitude))) {
+        return null;
+      }
+      var name = String(row.name || "").toLowerCase();
+      var category = String(row.category || "").toLowerCase();
+      var address = String(row.address || "").toLowerCase();
+      var description = String(row.description || "").toLowerCase();
       var score = 0;
       words.forEach(function (w) {
-        if (text.indexOf(w) >= 0) score += 2;
+        if (name.indexOf(w) >= 0) score += 7;
+        if (category.indexOf(w) >= 0) score += 6;
+        if (address.indexOf(w) >= 0) score += 3;
+        if (description.indexOf(w) >= 0) score += 1;
       });
-      if (categoryHints.length && categoryHints.indexOf(row.category) >= 0) score += 3;
+      if (categoryHints.length && categoryHints.indexOf(row.category) >= 0) score += 14;
       if (query && (row.name || "").toLowerCase().indexOf(query) >= 0) score += 5;
-      return { row: row, score: score };
+      var distance = null;
+      if (state.currentPosition) {
+        distance = distanceMeters(state.currentPosition, L.latLng(Number(row.latitude), Number(row.longitude)));
+        if (isFinite(distance)) {
+          if (distance < 400) score += 8;
+          else if (distance < 1000) score += 5;
+          else if (distance < 2500) score += 3;
+        }
+      }
+      return { row: row, score: score, distance: distance };
     }).filter(function (item) {
-      return item.score > 0;
+      if (!item) return false;
+      var minScore = categoryHints.length ? 12 : 7;
+      if (item.score < minScore) return false;
+      if (asksNearest && isFinite(item.distance) && item.distance > 7000) return false;
+      return true;
     }).sort(function (a, b) {
+      if (asksNearest && isFinite(a.distance) && isFinite(b.distance) && a.distance !== b.distance) {
+        return a.distance - b.distance;
+      }
       return b.score - a.score;
     }).slice(0, cfg.aiPublicMaxSuggestions || 5).map(function (item) {
       return {
@@ -1143,13 +1192,20 @@
         category: item.row.category,
         address: item.row.address,
         latitude: Number(item.row.latitude),
-        longitude: Number(item.row.longitude)
+        longitude: Number(item.row.longitude),
+        distanceMeters: isFinite(item.distance) ? Math.round(item.distance) : null
       };
     });
 
     var answer = "Je n'ai pas pu contacter le service IA distant. Voici les lieux les plus pertinents trouvés localement.";
     if (!ranked.length) {
-      answer = "Je n'ai pas trouvé de lieu correspondant. Essaie avec plus de détails (ex: pharmacie, hôpital, mairie, police).";
+      if (isRouteIntent) {
+        answer = "Je n'ai pas trouvé de destination claire. Essaie: 'pharmacie la plus proche' ou 'mairie de Camayenne'.";
+      } else if (!isPlaceIntent) {
+        answer = "Je peux surtout aider pour trouver des lieux et itinéraires. Exemple: 'où est la pharmacie la plus proche ?'.";
+      } else {
+        answer = "Je n'ai pas trouvé de lieu correspondant. Essaie avec plus de détails (ex: pharmacie, hôpital, mairie, police).";
+      }
     }
     return {
       answer: answer,

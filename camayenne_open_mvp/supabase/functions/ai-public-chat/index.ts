@@ -27,7 +27,22 @@ const CATEGORY_HINTS: Record<string, string[]> = {
   MARCHE: ["marché", "marche", "boutique", "achat", "course", "courses"],
   TRANSPORT: ["bus", "transport", "gare", "taxi", "arrêt", "arret"],
   HOTEL: ["hôtel", "hotel", "hébergement", "hebergement"],
+  MOSQUEE: ["mosquée", "mosquee", "imam"],
+  RESTAURANT: ["restaurant", "manger", "repas"],
+  BANQUE_ATM: ["banque", "atm", "guichet", "retrait"],
 };
+
+const STOP_WORDS = new Set([
+  "dans", "avec", "pour", "sans", "vers", "sur", "sous", "entre", "depuis", "par",
+  "est", "suis", "sommes", "etre", "être", "comment", "pourquoi", "quand", "quel", "quelle",
+  "quels", "quelles", "peux", "peut", "pouvez", "veux", "veut", "aller", "trouver", "lieu",
+  "lieux", "adresse", "proche", "pres", "près", "plus", "moins", "dans", "camayenne",
+  "conakry", "svp", "bonjour", "salut", "merci", "donc", "ainsi",
+]);
+
+const REPORT_HINTS = ["signaler", "signalement", "incident", "probl", "plainte", "réclamation", "reclamation"];
+const ROUTE_HINTS = ["itin", "route", "trajet", "aller", "rendre", "chemin", "guidage", "navig"];
+const PLACE_HINTS = ["où", "ou", "trouver", "proche", "près", "pres", "adresse", "numéro", "numero", "téléphone", "telephone"];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -48,7 +63,7 @@ function tokenize(v: string) {
   return normalizeLower(v)
     .replace(/[^a-z0-9\u00c0-\u017f\s]/gi, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 3);
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
 function detectCategories(message: string) {
@@ -63,6 +78,21 @@ function detectCategories(message: string) {
     }
   }
   return Array.from(found);
+}
+
+function detectIntent(message: string, categories: string[]) {
+  const msg = normalizeLower(message);
+  const isReport = REPORT_HINTS.some((hint) => msg.includes(hint));
+  const isRoute = ROUTE_HINTS.some((hint) => msg.includes(hint));
+  const isPlaceHint = PLACE_HINTS.some((hint) => msg.includes(hint));
+  const isPlaceRequest = categories.length > 0 || isRoute || isPlaceHint;
+  const asksNearest = msg.includes("plus proche") || msg.includes("proche") || msg.includes("près") ||
+    msg.includes("pres");
+  return { isReport, isRoute, isPlaceRequest, asksNearest };
+}
+
+function isValidCoordinate(v: number | null, min: number, max: number) {
+  return v != null && Number.isFinite(v) && v >= min && v <= max;
 }
 
 function toRad(v: number) {
@@ -93,15 +123,16 @@ function scorePoi(
   const category = normalizeLower(poi.category);
   const address = normalizeLower(poi.address);
   const description = normalizeLower(poi.description);
-  const blob = `${name} ${category} ${address} ${description}`;
+  const hasCategoryMatch = !!(categories.length && poi.category && categories.includes(poi.category));
 
   for (const w of words) {
-    if (name.includes(w)) score += 5;
-    if (category.includes(w)) score += 4;
-    if (blob.includes(w)) score += 2;
+    if (name.includes(w)) score += 7;
+    if (category.includes(w)) score += 6;
+    if (address.includes(w)) score += 3;
+    if (description.includes(w)) score += 1;
   }
-  if (categories.length && poi.category && categories.includes(poi.category)) {
-    score += 8;
+  if (hasCategoryMatch) {
+    score += 14;
   }
 
   if (userLocation && poi.latitude != null && poi.longitude != null) {
@@ -115,7 +146,10 @@ function scorePoi(
       else if (d < 2500) score += 3;
     }
   }
-  return score;
+  return {
+    score,
+    hasCategoryMatch,
+  };
 }
 
 function formatDistance(v: number | null) {
@@ -128,12 +162,13 @@ function buildFallbackAnswer(
   message: string,
   suggestions: Array<Record<string, unknown>>,
   reportSummary: { total: number; byType: Record<string, number> },
+  intent?: { isReport: boolean; isRoute: boolean; isPlaceRequest: boolean; asksNearest: boolean },
 ) {
   const m = normalizeLower(message);
-  if (m.includes("signaler") || m.includes("probl") || m.includes("incident")) {
+  if ((intent && intent.isReport && !intent.isPlaceRequest) || m.includes("signaler") || m.includes("probl") || m.includes("incident")) {
     return "Pour signaler: ouvre l'onglet 'Signaler', choisis le type, place le point sur la carte puis valide. Un agent traitera ensuite le dossier.";
   }
-  if (m.includes("itin") || m.includes("route") || m.includes("aller")) {
+  if ((intent && intent.isRoute) || m.includes("itin") || m.includes("route") || m.includes("aller")) {
     if (suggestions.length) {
       return "J'ai trouvé des lieux pertinents. Utilise 'Itinéraire' sur la suggestion pour lancer le guidage depuis ta position.";
     }
@@ -152,6 +187,7 @@ async function generateOpenAiAnswer(params: {
   message: string;
   suggestions: Array<Record<string, unknown>>;
   reportSummary: { total: number; byType: Record<string, number> };
+  intent: { isReport: boolean; isRoute: boolean; isPlaceRequest: boolean; asksNearest: boolean };
 }) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) return null;
@@ -168,13 +204,16 @@ async function generateOpenAiAnswer(params: {
     "Tu es l'assistant public de la carte Camayenne (Conakry).",
     "Réponds en français simple, court, utile et concret.",
     "N'invente pas de lieux ni de données non présentes.",
+    "Si la question est une procédure (ex: comment signaler), ne propose pas de position ou de coordonnées.",
     "Si la question concerne un signalement citoyen, explique les étapes dans l'application.",
     "Si des suggestions de lieux existent, conseille l'action 'Voir sur la carte' ou 'Itinéraire'.",
+    "Si aucune suggestion pertinente, dis clairement qu'aucun lieu correspondant n'a été trouvé.",
     "Limite la réponse à 5 phrases maximum.",
   ].join("\n");
 
   const userPrompt = [
     `Question citoyen: ${params.message}`,
+    `Intent: report=${params.intent.isReport}; route=${params.intent.isRoute}; place=${params.intent.isPlaceRequest}; nearest=${params.intent.asksNearest}`,
     `Lieux suggérés:`,
     poiLines || "Aucun",
     `Résumé signalements (30 jours): total ${params.reportSummary.total}; ${summaryLines || "aucune donnée"}`,
@@ -243,6 +282,7 @@ Deno.serve(async (req) => {
 
     const categories = detectCategories(message);
     const words = tokenize(message);
+    const intent = detectIntent(message, categories);
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
@@ -265,7 +305,10 @@ Deno.serve(async (req) => {
     const pois = (poiRes.data || []) as PoiRow[];
 
     const scored = pois.map((poi) => {
-      const score = scorePoi(poi, words, categories, userLocation);
+      if (!isValidCoordinate(poi.latitude, -90, 90) || !isValidCoordinate(poi.longitude, -180, 180)) {
+        return null;
+      }
+      const scoring = scorePoi(poi, words, categories, userLocation);
       let distance: number | null = null;
       if (userLocation && poi.latitude != null && poi.longitude != null) {
         distance = distanceMeters(userLocation, {
@@ -273,23 +316,49 @@ Deno.serve(async (req) => {
           longitude: Number(poi.longitude),
         });
       }
-      return { poi, score, distance };
-    }).sort((a, b) => b.score - a.score);
+      return { poi, score: scoring.score, hasCategoryMatch: scoring.hasCategoryMatch, distance };
+    }).filter((row): row is {
+      poi: PoiRow;
+      score: number;
+      hasCategoryMatch: boolean;
+      distance: number | null;
+    } => !!row);
 
-    const top = scored
-      .filter((x) => x.score > 0 || !words.length)
-      .slice(0, limit)
-      .map((x) => ({
-        id: x.poi.id,
-        name: x.poi.name,
-        category: x.poi.category,
-        address: x.poi.address,
-        phone: x.poi.phone,
-        latitude: x.poi.latitude,
-        longitude: x.poi.longitude,
-        distanceMeters: x.distance == null || !Number.isFinite(x.distance) ? null : Math.round(x.distance),
-        distanceText: formatDistance(x.distance),
-      }));
+    scored.sort((a, b) => {
+      if (intent.asksNearest && userLocation) {
+        const da = a.distance == null || !Number.isFinite(a.distance) ? Number.POSITIVE_INFINITY : a.distance;
+        const db = b.distance == null || !Number.isFinite(b.distance) ? Number.POSITIVE_INFINITY : b.distance;
+        if (da !== db) return da - db;
+      }
+      if (a.score !== b.score) return b.score - a.score;
+      return a.poi.id - b.poi.id;
+    });
+
+    const minScore = categories.length ? 12 : 7;
+    let top: Array<Record<string, unknown>> = [];
+    if (intent.isPlaceRequest) {
+      top = scored
+        .filter((x) => {
+          if (x.score < minScore) return false;
+          if (categories.length && !x.hasCategoryMatch && x.score < 20) return false;
+          if (intent.asksNearest && userLocation && x.distance != null && Number.isFinite(x.distance) && x.distance > 7000) {
+            return false;
+          }
+          return true;
+        })
+        .slice(0, limit)
+        .map((x) => ({
+          id: x.poi.id,
+          name: x.poi.name,
+          category: x.poi.category,
+          address: x.poi.address,
+          phone: x.poi.phone,
+          latitude: x.poi.latitude,
+          longitude: x.poi.longitude,
+          distanceMeters: x.distance == null || !Number.isFinite(x.distance) ? null : Math.round(x.distance),
+          distanceText: formatDistance(x.distance),
+        }));
+    }
 
     const sinceIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const reportsRes = await admin
@@ -310,18 +379,21 @@ Deno.serve(async (req) => {
       byType,
     };
 
-    const openAiAnswer = await generateOpenAiAnswer({
+    const shouldUseOpenAI = !(intent.isReport && !intent.isPlaceRequest);
+    const openAiAnswer = shouldUseOpenAI ? await generateOpenAiAnswer({
       message,
       suggestions: top,
       reportSummary,
-    });
-    const answer = openAiAnswer || buildFallbackAnswer(message, top, reportSummary);
+      intent,
+    }) : null;
+    const answer = openAiAnswer || buildFallbackAnswer(message, top, reportSummary, intent);
 
     return json({
       ok: true,
       answer,
       suggestions: top,
       reportSummary,
+      intent,
       usedOpenAI: !!openAiAnswer,
     });
   } catch (err) {
