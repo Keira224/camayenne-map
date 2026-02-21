@@ -1496,11 +1496,11 @@
   }
 
   function destinationIcon() {
-    return L.divIcon({
-      className: "",
-      html: '<div class="route-destination-pin"><span></span></div>',
-      iconSize: [26, 36],
-      iconAnchor: [13, 34]
+    return L.icon({
+      iconUrl: "./assets/icons/destination-pin.png",
+      iconSize: [36, 36],
+      iconAnchor: [18, 34],
+      popupAnchor: [0, -30]
     });
   }
 
