@@ -70,6 +70,7 @@
   var sketchLayer = L.layerGroup().addTo(map);
   var userLayer = L.layerGroup().addTo(map);
   var routeLayer = L.layerGroup().addTo(map);
+  var routeTargetLayer = L.layerGroup().addTo(map);
   var shareLayer = L.layerGroup().addTo(map);
 
   var state = {
@@ -1308,14 +1309,31 @@
     });
   }
 
-  function addPopupRouteHandler(marker, lat, lon) {
+  function addPopupRouteHandler(marker, lat, lon, row) {
     marker.on("popupopen", function (evt) {
       var button = evt.popup.getElement().querySelector("[data-route-btn]");
       if (!button) return;
       button.addEventListener("click", function () {
-        drawRouteTo(L.latLng(lat, lon));
+        drawRouteTo(L.latLng(lat, lon), row || null);
       });
     });
+  }
+
+  function drawRouteTargetMarker(targetLatLng, meta) {
+    routeTargetLayer.clearLayers();
+    if (!targetLatLng) return;
+
+    var marker = L.marker(targetLatLng, { icon: destinationIcon() }).addTo(routeTargetLayer);
+    var photoUrl = getPoiPhotoUrl(meta || {});
+    var title = escapeHtml((meta && meta.name) || (state.lang === "en" ? "Destination" : "Destination"));
+    var category = escapeHtml((meta && meta.category) || "");
+    marker.bindPopup(
+      "<strong>" + title + "</strong>" +
+      (category ? "<br>" + category : "") +
+      (photoUrl
+        ? "<br><img src='" + escapeHtml(photoUrl) + "' alt='Photo destination' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+        : "")
+    );
   }
 
   function renderPoiMarkers(rows) {
@@ -1325,8 +1343,9 @@
       var lat = Number(row.latitude);
       var lon = Number(row.longitude);
       var marker = L.marker([lat, lon], { icon: poiIcon() }).addTo(poiLayer);
-      var photoHtml = row.photo_url
-        ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+      var photoUrl = getPoiPhotoUrl(row);
+      var photoHtml = photoUrl
+        ? "<br><img src='" + escapeHtml(photoUrl) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
         : "";
       var html = "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
         "<br>" + t("labelCategory") + ": " + escapeHtml(row.category || "") +
@@ -1335,7 +1354,7 @@
         photoHtml +
         "<br><button data-route-btn type='button'>" + t("routeToPlace") + "</button>";
       marker.bindPopup(html);
-      addPopupRouteHandler(marker, lat, lon);
+      addPopupRouteHandler(marker, lat, lon, row);
     });
   }
 
@@ -1386,8 +1405,8 @@
       "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
       "<br>" + escapeHtml(row.category || "") +
       "<br>" + escapeHtml(row.address || "") +
-      (row.photo_url
-        ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+      (getPoiPhotoUrl(row)
+        ? "<br><img src='" + escapeHtml(getPoiPhotoUrl(row)) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
         : "")
     ).openPopup();
   }
@@ -1413,8 +1432,8 @@
           "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
           "<br>" + escapeHtml(row.category || "") +
           "<br>" + escapeHtml(row.address || "") +
-          (row.photo_url
-            ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
+          (getPoiPhotoUrl(row)
+            ? "<br><img src='" + escapeHtml(getPoiPhotoUrl(row)) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
             : "")
         )
         .addTo(searchFocusLayer);
@@ -1449,7 +1468,7 @@
         focusResultOnMap(row);
       });
       routeButton.addEventListener("click", function () {
-        drawRouteTo(L.latLng(Number(row.latitude), Number(row.longitude)));
+        drawRouteTo(L.latLng(Number(row.latitude), Number(row.longitude)), row);
       });
       dom.searchResults.appendChild(item);
     });
@@ -1474,6 +1493,32 @@
     dom.searchResults.innerHTML = "";
     searchFocusLayer.clearLayers();
     setStatus(dom.searchStatus, "", null);
+  }
+
+  function destinationIcon() {
+    return L.divIcon({
+      className: "",
+      html: '<div class="route-destination-pin"><span></span></div>',
+      iconSize: [26, 36],
+      iconAnchor: [13, 34]
+    });
+  }
+
+  function getPoiPhotoUrl(row) {
+    if (!row) return "";
+    var directUrl = String(row.photo_url || "").trim();
+    if (directUrl) return directUrl;
+
+    var rawPath = String(row.photo_path || "").trim();
+    if (!rawPath) return "";
+    if (/^https?:\/\//i.test(rawPath)) return rawPath;
+    if (!cfg.supabaseUrl) return "";
+
+    var path = rawPath.replace(/^\/+/, "");
+    if (path.indexOf("poi-photos/") === 0) {
+      path = path.substring("poi-photos/".length);
+    }
+    return String(cfg.supabaseUrl).replace(/\/+$/, "") + "/storage/v1/object/public/poi-photos/" + path;
   }
 
   function clearAiResponse() {
@@ -1629,7 +1674,7 @@
         }
       });
       routeBtn.addEventListener("click", function () {
-        drawRouteTo(L.latLng(row.latitude, row.longitude));
+        drawRouteTo(L.latLng(row.latitude, row.longitude), row);
         if (isMobileLayout()) {
           setPanelCollapsed(true);
         }
@@ -1904,6 +1949,7 @@
         avoidMainRoads: getAvoidMainRoads(),
         roundTrip: false
       });
+      drawRouteTargetMarker(targetLatLng, null);
       onRouteReady(routeResult, targetLatLng, "Itineraire calcule vers la position partagee.");
       setShareStatus("Itineraire pret.", "success");
     } catch (err) {
@@ -2632,7 +2678,7 @@
     };
   }
 
-  async function drawRouteTo(targetLatLng) {
+  async function drawRouteTo(targetLatLng, targetMeta) {
     try {
       var from = await getCurrentPositionForRouting({
         maxAgeMs: cfg.currentPositionMaxAgeMs || 45000,
@@ -2644,6 +2690,7 @@
         avoidMainRoads: getAvoidMainRoads(),
         roundTrip: isRoundTripEnabled()
       });
+      drawRouteTargetMarker(targetLatLng, targetMeta || null);
       onRouteReady(routeResult, targetLatLng, "Itinéraire calculé.");
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
@@ -2707,6 +2754,7 @@
         avoidMainRoads: getAvoidMainRoads(),
         roundTrip: isRoundTripEnabled()
       });
+      drawRouteTargetMarker(toPoint, toValue === "__CURRENT__" ? null : getPoiById(toValue));
       onRouteReady(routeResult, toPoint, "Itinéraire calculé entre deux points.");
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
@@ -2828,6 +2876,7 @@
     });
     dom.btnClearRoute.addEventListener("click", function () {
       routeLayer.clearLayers();
+      routeTargetLayer.clearLayers();
       setRouteStatus("", null);
       setRouteMetrics(null, null, null, null);
       stopNavigation(false);
