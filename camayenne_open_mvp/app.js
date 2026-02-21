@@ -174,7 +174,6 @@
     btnSubmitPoi: document.getElementById("btnSubmitPoi"),
     poiStatus: document.getElementById("poiStatus"),
     reportType: document.getElementById("reportType"),
-    reportStatus: document.getElementById("reportStatus"),
     reportTitle: document.getElementById("reportTitle"),
     reportDescription: document.getElementById("reportDescription"),
     btnPickReportPoint: document.getElementById("btnPickReportPoint"),
@@ -1625,7 +1624,6 @@
 
   function clearReportForm() {
     dom.reportType.selectedIndex = 0;
-    dom.reportStatus.selectedIndex = 0;
     dom.reportTitle.value = "";
     dom.reportDescription.value = "";
     state.selectedReportPoint = null;
@@ -1746,7 +1744,6 @@
     var payload = {
       title: title,
       type: dom.reportType.value,
-      status: dom.reportStatus.value,
       description: dom.reportDescription.value.trim(),
       latitude: state.selectedReportPoint.lat,
       longitude: state.selectedReportPoint.lng
@@ -2561,7 +2558,6 @@
     fillSelect(dom.searchCategory, poiCategories, true);
     fillSelect(dom.poiCategory, poiCategories, false);
     fillSelect(dom.reportType, reportTypes, false);
-    fillSelect(dom.reportStatus, reportStatuses, false);
     fillSelect(dom.filterType, reportTypes, true);
     fillSelect(dom.filterStatus, reportStatuses, true);
     fillRoutePlannerSelects();

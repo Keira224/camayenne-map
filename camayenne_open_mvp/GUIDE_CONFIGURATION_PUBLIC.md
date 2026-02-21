@@ -313,3 +313,7 @@ npx supabase@latest functions deploy ai-admin-insights --no-verify-jwt
 - bouton `Auto-affecter` crée des affectations automatiques pour les `NOUVEAU`
 - sauvegarde manuelle service/agent/echéance fonctionne
 - section `Analyse IA mairie` se met à jour après affectation
+
+
+--Pour demarer en local
+python -m http.server 8000
