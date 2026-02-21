@@ -75,6 +75,7 @@
   var state = {
     poi: [],
     reports: [],
+    lang: "fr",
     currentPosition: null,
     currentAccuracy: null,
     currentPositionAt: null,
@@ -116,6 +117,7 @@
 
   var dom = {
     panel: document.getElementById("panel"),
+    langSelect: document.getElementById("langSelect"),
     btnPanelToggle: document.getElementById("btnPanelToggle"),
     quickTabButtons: document.querySelectorAll("[data-quick-tab]"),
     tabs: document.querySelectorAll(".tab"),
@@ -185,6 +187,376 @@
     reportStatusMessage: document.getElementById("reportStatusMessage"),
     hintText: document.getElementById("hintText")
   };
+
+  var I18N = {
+    fr: {
+      langLabel: "Langue",
+      panelToggleHide: "Masquer le panneau",
+      panelToggleShow: "Afficher le panneau",
+      headerSubtitle: "Géolocalisation, POI, signalements, itinéraires | ",
+      quickSearch: "Trouver",
+      quickAdd: "Ajouter",
+      quickReport: "Signaler",
+      btnLocate: "Ma position",
+      btnClearRoute: "Effacer itinéraire",
+      btnFocusArea: "Zone Camayenne",
+      shareTitle: "Partager ma position",
+      shareDuration: "Durée du lien",
+      btnShare: "Partager",
+      btnShowLink: "Afficher mon lien",
+      btnShareWhatsapp: "Partager WhatsApp",
+      btnShareNewLink: "Générer un nouveau lien",
+      togglePoi: "Afficher POI",
+      toggleReports: "Afficher signalements",
+      aiTitle: "Assistant public IA",
+      aiHelp: "Pose une question: lieu utile, service public, orientation ou aide signalement.",
+      aiPromptPharmacy: "Pharmacie proche",
+      aiPromptReport: "Signaler éclairage",
+      aiPromptCity: "Mairie / Police",
+      aiQuestion: "Question",
+      aiQuestionPh: "Ex: Où trouver un hôpital ouvert à Camayenne ?",
+      btnAiAsk: "Demander à l'IA",
+      btnClear: "Effacer",
+      tabSearch: "Rechercher",
+      tabAdd: "Ajouter lieu",
+      tabReport: "Signaler",
+      labelName: "Nom",
+      labelCategory: "Catégorie",
+      labelAddress: "Adresse",
+      labelPhone: "Téléphone",
+      labelDescription: "Description",
+      labelType: "Type",
+      labelStatusFilter: "Filtrer statut",
+      labelTypeFilter: "Filtrer type",
+      labelRouteFrom: "Départ",
+      labelRouteTo: "Arrivée",
+      routeTitle: "Itinéraire",
+      routeOptions: "Options itinéraire",
+      routeMode: "Mode de déplacement",
+      routeType: "Type de trajet",
+      routeAvoidMain: "Éviter les grands axes (si possible)",
+      routeRoundTrip: "Aller-retour (A -> B -> A)",
+      routeCar: "Voiture",
+      routeBike: "Vélo",
+      routeWalk: "Marche",
+      routeShortest: "Le plus court",
+      routeBalanced: "Équilibré",
+      routeFastest: "Le plus rapide",
+      btnSwap: "Inverser",
+      btnCalcRoute: "Calculer itinéraire",
+      btnStartNav: "Démarrer guidage",
+      btnStopNav: "Arrêter guidage",
+      poiNamePh: "Nom du lieu",
+      poiAddressPh: "Adresse ou repère",
+      poiPhonePh: "+224 ...",
+      poiDescriptionPh: "Détails utiles",
+      btnPickMap: "Choisir sur carte",
+      btnUseCenter: "Utiliser centre",
+      btnSend: "Envoyer",
+      pointUndefined: "Point: non défini",
+      pointFormat: "Point: {lat}, {lon}",
+      reportInitialStatus: "Statut initial: NOUVEAU (défini automatiquement)",
+      reportTitle: "Titre",
+      reportTitlePh: "Ex: nid de poule",
+      reportDescriptionPh: "Détails du signalement",
+      hintDefault: "Clique sur un marqueur pour voir les détails et lancer un itinéraire.",
+      hintPickPoi: "Mode ajout lieu: clique un point sur la carte.",
+      hintPickReport: "Mode signalement: clique un point sur la carte.",
+      hintPointSaved: "Point enregistré. Clique sur un marqueur pour voir les détails et lancer un itinéraire.",
+      all: "Tous",
+      currentPosition: "Ma position actuelle",
+      place: "Lieu",
+      routeToPlace: "Itinéraire vers ce lieu",
+      viewOnMap: "Voir sur la carte",
+      route: "Itinéraire",
+      noResults: "Aucun résultat.",
+      resultsCount: "{count} résultat(s).",
+      assistantReady: "Assistant prêt.",
+      assistantAsking: "Analyse en cours...",
+      assistantAnswerReady: "Réponse générée.",
+      assistantUnavailable: "IA distante indisponible. Résultats locaux affichés.",
+      askQuestion: "Saisis une question.",
+      questionTooLong: "Question trop longue.",
+      dataLoaded: "Données chargées.",
+      dataLoadError: "Erreur chargement: {error}",
+      demoMode: "Mode démo: renseigne config.js pour connecter la base."
+    },
+    en: {
+      langLabel: "Language",
+      panelToggleHide: "Hide panel",
+      panelToggleShow: "Show panel",
+      headerSubtitle: "Geolocation, POI, reports, routes | ",
+      quickSearch: "Find",
+      quickAdd: "Add",
+      quickReport: "Report",
+      btnLocate: "My location",
+      btnClearRoute: "Clear route",
+      btnFocusArea: "Camayenne area",
+      shareTitle: "Share my location",
+      shareDuration: "Link duration",
+      btnShare: "Share",
+      btnShowLink: "Show my link",
+      btnShareWhatsapp: "Share on WhatsApp",
+      btnShareNewLink: "Generate new link",
+      togglePoi: "Show POI",
+      toggleReports: "Show reports",
+      aiTitle: "Public AI assistant",
+      aiHelp: "Ask about useful places, public services, directions or reporting help.",
+      aiPromptPharmacy: "Nearest pharmacy",
+      aiPromptReport: "Report lighting",
+      aiPromptCity: "City hall / Police",
+      aiQuestion: "Question",
+      aiQuestionPh: "Ex: Where can I find an open hospital in Camayenne?",
+      btnAiAsk: "Ask AI",
+      btnClear: "Clear",
+      tabSearch: "Search",
+      tabAdd: "Add place",
+      tabReport: "Report",
+      labelName: "Name",
+      labelCategory: "Category",
+      labelAddress: "Address",
+      labelPhone: "Phone",
+      labelDescription: "Description",
+      labelType: "Type",
+      labelStatusFilter: "Filter status",
+      labelTypeFilter: "Filter type",
+      labelRouteFrom: "From",
+      labelRouteTo: "To",
+      routeTitle: "Route",
+      routeOptions: "Route options",
+      routeMode: "Travel mode",
+      routeType: "Trip type",
+      routeAvoidMain: "Avoid major roads (if possible)",
+      routeRoundTrip: "Round trip (A -> B -> A)",
+      routeCar: "Car",
+      routeBike: "Bike",
+      routeWalk: "Walk",
+      routeShortest: "Shortest",
+      routeBalanced: "Balanced",
+      routeFastest: "Fastest",
+      btnSwap: "Swap",
+      btnCalcRoute: "Calculate route",
+      btnStartNav: "Start guidance",
+      btnStopNav: "Stop guidance",
+      poiNamePh: "Place name",
+      poiAddressPh: "Address or landmark",
+      poiPhonePh: "+224 ...",
+      poiDescriptionPh: "Useful details",
+      btnPickMap: "Pick on map",
+      btnUseCenter: "Use center",
+      btnSend: "Send",
+      pointUndefined: "Point: undefined",
+      pointFormat: "Point: {lat}, {lon}",
+      reportInitialStatus: "Initial status: NEW (set automatically)",
+      reportTitle: "Title",
+      reportTitlePh: "Ex: pothole",
+      reportDescriptionPh: "Report details",
+      hintDefault: "Click a marker to view details and start a route.",
+      hintPickPoi: "Add place mode: click a point on the map.",
+      hintPickReport: "Report mode: click a point on the map.",
+      hintPointSaved: "Point saved. Click a marker to view details and start a route.",
+      all: "All",
+      currentPosition: "My current location",
+      place: "Place",
+      routeToPlace: "Route to this place",
+      viewOnMap: "View on map",
+      route: "Route",
+      noResults: "No results.",
+      resultsCount: "{count} result(s).",
+      assistantReady: "Assistant ready.",
+      assistantAsking: "Analyzing...",
+      assistantAnswerReady: "Answer generated.",
+      assistantUnavailable: "Remote AI unavailable. Local results displayed.",
+      askQuestion: "Enter a question.",
+      questionTooLong: "Question is too long.",
+      dataLoaded: "Data loaded.",
+      dataLoadError: "Loading error: {error}",
+      demoMode: "Demo mode: fill config.js to connect the database."
+    }
+  };
+
+  function getInitialLang() {
+    var fallback = (cfg.defaultLanguage || "fr").toLowerCase() === "en" ? "en" : "fr";
+    try {
+      var saved = localStorage.getItem("camayenne_lang");
+      if (saved === "fr" || saved === "en") return saved;
+    } catch (_) {
+      // ignore localStorage errors
+    }
+    return fallback;
+  }
+
+  function t(key, vars) {
+    var lang = state.lang === "en" ? "en" : "fr";
+    var value = (I18N[lang] && I18N[lang][key]) || (I18N.fr && I18N.fr[key]) || key;
+    if (!vars) return value;
+    return value.replace(/\{(\w+)\}/g, function (_, k) {
+      return vars[k] != null ? String(vars[k]) : "";
+    });
+  }
+
+  function setText(node, value) {
+    if (node) node.textContent = value;
+  }
+
+  function setLabel(forId, value) {
+    var node = document.querySelector("label[for='" + forId + "']");
+    if (node) node.textContent = value;
+  }
+
+  function setInputPlaceholder(node, value) {
+    if (node) node.placeholder = value;
+  }
+
+  function applyPublicLanguage() {
+    setLabel("langSelect", t("langLabel"));
+    var subtitleNode = document.querySelector(".panel-header p");
+    if (subtitleNode) {
+      var link = subtitleNode.querySelector("a");
+      subtitleNode.innerHTML = "";
+      subtitleNode.appendChild(document.createTextNode(t("headerSubtitle")));
+      if (link) subtitleNode.appendChild(link);
+    }
+
+    if (dom.btnPanelToggle) {
+      dom.btnPanelToggle.textContent = state.panelCollapsed ? t("panelToggleShow") : t("panelToggleHide");
+    }
+
+    setText(document.querySelector("[data-quick-tab='search']"), t("quickSearch"));
+    setText(document.querySelector("[data-quick-tab='add']"), t("quickAdd"));
+    setText(document.querySelector("[data-quick-tab='report']"), t("quickReport"));
+
+    setText(dom.btnLocate, t("btnLocate"));
+    setText(dom.btnClearRoute, t("btnClearRoute"));
+    setText(dom.btnFocusArea, t("btnFocusArea"));
+    setText(dom.btnShareLocation, t("btnShare"));
+    setText(dom.btnShowShareLink, t("btnShowLink"));
+    setText(dom.btnShareWhatsApp, t("btnShareWhatsapp"));
+    setText(dom.btnShareNewLink, t("btnShareNewLink"));
+
+    setLabel("shareTtlSelect", t("shareDuration"));
+    setText(document.querySelector(".share-actions .cam-subtitle"), t("shareTitle"));
+    setText(document.querySelector(".ai-assistant .cam-subtitle"), t("aiTitle"));
+    setText(document.querySelector(".ai-help"), t("aiHelp"));
+
+    setLabel("aiMessageInput", t("aiQuestion"));
+    setInputPlaceholder(dom.aiMessageInput, t("aiQuestionPh"));
+    setText(dom.btnAiAsk, t("btnAiAsk"));
+    setText(dom.btnAiClear, t("btnClear"));
+
+    setText(document.querySelector(".tab[data-tab='search']"), t("tabSearch"));
+    setText(document.querySelector(".tab[data-tab='add']"), t("tabAdd"));
+    setText(document.querySelector(".tab[data-tab='report']"), t("tabReport"));
+
+    setLabel("searchName", t("labelName"));
+    setLabel("searchCategory", t("labelCategory"));
+    setText(dom.btnSearch, t("tabSearch"));
+    setText(dom.btnResetSearch, t("btnClear"));
+    setText(document.querySelector("#tab-search .cam-subtitle"), t("routeTitle"));
+    setLabel("routeFromSelect", t("labelRouteFrom"));
+    setLabel("routeToSelect", t("labelRouteTo"));
+    setText(document.querySelector(".advanced-options summary"), t("routeOptions"));
+    setLabel("routeProfileSelect", t("routeMode"));
+    setLabel("routePreferenceSelect", t("routeType"));
+    var routeToggleLabels = document.querySelectorAll(".route-toggle");
+    if (routeToggleLabels.length > 0) routeToggleLabels[0].lastChild.textContent = " " + t("routeAvoidMain");
+    if (routeToggleLabels.length > 1) routeToggleLabels[1].lastChild.textContent = " " + t("routeRoundTrip");
+    setText(dom.btnSwapRoute, t("btnSwap"));
+    setText(dom.btnRouteBetween, t("btnCalcRoute"));
+    setText(dom.btnStartNav, t("btnStartNav"));
+    setText(dom.btnStopNav, t("btnStopNav"));
+
+    setLabel("poiName", t("labelName"));
+    setLabel("poiCategory", t("labelCategory"));
+    setLabel("poiAddress", t("labelAddress"));
+    setLabel("poiPhone", t("labelPhone"));
+    setLabel("poiDescription", t("labelDescription"));
+    setInputPlaceholder(dom.poiName, t("poiNamePh"));
+    setInputPlaceholder(dom.poiAddress, t("poiAddressPh"));
+    setInputPlaceholder(dom.poiPhone, t("poiPhonePh"));
+    setInputPlaceholder(dom.poiDescription, t("poiDescriptionPh"));
+    setText(dom.btnPickPoiPoint, t("btnPickMap"));
+    setText(dom.btnPoiCenter, t("btnUseCenter"));
+    setText(dom.btnSubmitPoi, t("btnSend"));
+
+    setLabel("reportType", t("labelType"));
+    var initialStatusNode = document.querySelector("#tab-report .status");
+    if (initialStatusNode) initialStatusNode.textContent = t("reportInitialStatus");
+    setLabel("reportTitle", t("reportTitle"));
+    setLabel("reportDescription", t("labelDescription"));
+    setInputPlaceholder(dom.reportTitle, t("reportTitlePh"));
+    setInputPlaceholder(dom.reportDescription, t("reportDescriptionPh"));
+    setText(dom.btnPickReportPoint, t("btnPickMap"));
+    setText(dom.btnReportCenter, t("btnUseCenter"));
+    setText(dom.btnSubmitReport, t("btnSend"));
+    setLabel("filterType", t("labelTypeFilter"));
+    setLabel("filterStatus", t("labelStatusFilter"));
+
+    var toggles = document.querySelectorAll(".layer-toggles label");
+    if (toggles.length > 0) toggles[0].lastChild.textContent = " " + t("togglePoi");
+    if (toggles.length > 1) toggles[1].lastChild.textContent = " " + t("toggleReports");
+
+    if (dom.hintText && !state.pickMode) {
+      dom.hintText.textContent = t("hintDefault");
+    }
+
+    if (dom.aiQuickButtons && dom.aiQuickButtons.length >= 3) {
+      dom.aiQuickButtons[0].textContent = t("aiPromptPharmacy");
+      dom.aiQuickButtons[0].dataset.aiPrompt = state.lang === "en"
+        ? "Where is the nearest pharmacy?"
+        : "Où est la pharmacie la plus proche ?";
+      dom.aiQuickButtons[1].textContent = t("aiPromptReport");
+      dom.aiQuickButtons[1].dataset.aiPrompt = state.lang === "en"
+        ? "How do I report a streetlight issue?"
+        : "Comment signaler un problème d'éclairage ?";
+      dom.aiQuickButtons[2].textContent = t("aiPromptCity");
+      dom.aiQuickButtons[2].dataset.aiPrompt = state.lang === "en"
+        ? "I am looking for city hall and police in Camayenne"
+        : "Je cherche la mairie et la police à Camayenne";
+    }
+
+    if (dom.routeProfileSelect) {
+      var profileLabels = {
+        "driving-car": t("routeCar"),
+        "cycling-regular": t("routeBike"),
+        "foot-walking": t("routeWalk")
+      };
+      Array.prototype.forEach.call(dom.routeProfileSelect.options, function (opt) {
+        if (profileLabels[opt.value]) opt.textContent = profileLabels[opt.value];
+      });
+    }
+    if (dom.routePreferenceSelect) {
+      var prefLabels = {
+        shortest: t("routeShortest"),
+        recommended: t("routeBalanced"),
+        fastest: t("routeFastest")
+      };
+      Array.prototype.forEach.call(dom.routePreferenceSelect.options, function (opt) {
+        if (prefLabels[opt.value]) opt.textContent = prefLabels[opt.value];
+      });
+    }
+
+    if (dom.langSelect) {
+      dom.langSelect.value = state.lang;
+    }
+    document.documentElement.setAttribute("lang", state.lang);
+
+    setCoord(dom.poiCoord, state.selectedPoiPoint);
+    setCoord(dom.reportCoord, state.selectedReportPoint);
+    fillRoutePlannerSelects();
+  }
+
+  function setLanguage(lang, persist) {
+    state.lang = lang === "en" ? "en" : "fr";
+    applyPublicLanguage();
+    if (persist !== false) {
+      try {
+        localStorage.setItem("camayenne_lang", state.lang);
+      } catch (_) {
+        // ignore localStorage errors
+      }
+    }
+  }
 
   function isPointInPolygon(latlng, polygonLatLngs) {
     if (!latlng || !polygonLatLngs || polygonLatLngs.length < 3) return false;
@@ -270,10 +642,13 @@
 
   function setCoord(node, latlng) {
     if (!latlng) {
-      node.textContent = "Point: non défini";
+      node.textContent = t("pointUndefined");
       return;
     }
-    node.textContent = "Point: " + latlng.lat.toFixed(6) + ", " + latlng.lng.toFixed(6);
+    node.textContent = t("pointFormat", {
+      lat: latlng.lat.toFixed(6),
+      lon: latlng.lng.toFixed(6)
+    });
   }
 
   function fillSelect(selectNode, values, includeAll) {
@@ -282,7 +657,7 @@
     if (includeAll) {
       var opt = document.createElement("option");
       opt.value = "";
-      opt.textContent = "Tous";
+      opt.textContent = t("all");
       selectNode.appendChild(opt);
     }
     values.forEach(function (value) {
@@ -303,12 +678,12 @@
 
     var currentOpt = document.createElement("option");
     currentOpt.value = "__CURRENT__";
-    currentOpt.textContent = "Ma position actuelle";
+    currentOpt.textContent = t("currentPosition");
     dom.routeFromSelect.appendChild(currentOpt);
     dom.routeToSelect.appendChild(currentOpt.cloneNode(true));
 
     state.poi.forEach(function (row) {
-      var label = (row.name || "Lieu") + " (" + (row.category || "") + ")";
+      var label = (row.name || t("place")) + " (" + (row.category || "") + ")";
 
       var fromOpt = document.createElement("option");
       fromOpt.value = String(row.id);
@@ -393,14 +768,14 @@
       dom.routeMetrics.textContent = "";
       return;
     }
-    var typeText = preference === "shortest" ? "plus court" : (preference === "fastest" ? "plus rapide" : "équilibré");
-    var modeText = profile === "foot-walking" ? "Marche" : (profile === "cycling-regular" ? "Vélo" : "Voiture");
-    var rt = roundTrip ? " | Aller-retour" : "";
+    var typeText = preference === "shortest" ? t("routeShortest").toLowerCase() : (preference === "fastest" ? t("routeFastest").toLowerCase() : t("routeBalanced").toLowerCase());
+    var modeText = profile === "foot-walking" ? t("routeWalk") : (profile === "cycling-regular" ? t("routeBike") : t("routeCar"));
+    var rt = roundTrip ? " | " + (state.lang === "en" ? "Round trip" : "Aller-retour") : "";
     dom.routeMetrics.textContent =
       "Distance: " + formatDistance(summary.distance) +
-      " | Temps estimé: " + formatDuration(summary.duration) +
-      " | Mode: " + modeText +
-      " | Trajet: " + typeText + rt;
+      " | " + (state.lang === "en" ? "Est. time" : "Temps estimé") + ": " + formatDuration(summary.duration) +
+      " | " + (state.lang === "en" ? "Mode" : "Mode") + ": " + modeText +
+      " | " + (state.lang === "en" ? "Trip" : "Trajet") + ": " + typeText + rt;
   }
 
   function updateNavigationButtons() {
@@ -456,9 +831,9 @@
         fillColor: "#1a73e8",
         fillOpacity: 0.08
       }).addTo(userLayer);
-      (headingMarker || marker).bindPopup("Vous êtes ici (précision ±" + Math.round(accuracyMeters) + " m)");
+      (headingMarker || marker).bindPopup((state.lang === "en" ? "You are here" : "Vous êtes ici") + " (" + (state.lang === "en" ? "accuracy" : "précision") + " ±" + Math.round(accuracyMeters) + " m)");
     } else {
-      (headingMarker || marker).bindPopup("Vous êtes ici");
+      (headingMarker || marker).bindPopup(state.lang === "en" ? "You are here" : "Vous êtes ici");
     }
     if (opts.openPopup === true) {
       (headingMarker || marker).openPopup();
@@ -528,17 +903,17 @@
     var label;
 
     if (capDest == null) {
-      dom.compassLabel.textContent = "Boussole";
+      dom.compassLabel.textContent = state.lang === "en" ? "Compass" : "Boussole";
       return;
     }
 
     if (userHeading == null) {
       needleRotation = capDest;
-      label = "Cap " + Math.round(capDest) + "°";
+      label = (state.lang === "en" ? "Heading " : "Cap ") + Math.round(capDest) + "°";
     } else {
       var rel = shortestAngleDiff(capDest, userHeading);
       needleRotation = rel;
-      label = "Tourne " + (rel >= 0 ? "+" : "") + Math.round(rel) + "°";
+      label = (state.lang === "en" ? "Turn " : "Tourne ") + (rel >= 0 ? "+" : "") + Math.round(rel) + "°";
     }
 
     dom.compassNeedle.style.transform = "rotate(" + Math.round(needleRotation) + "deg)";
@@ -830,7 +1205,7 @@
     state.panelCollapsed = !!collapsed;
     document.body.classList.toggle("panel-collapsed", state.panelCollapsed);
     if (dom.btnPanelToggle) {
-      dom.btnPanelToggle.textContent = state.panelCollapsed ? "Afficher le panneau" : "Masquer le panneau";
+      dom.btnPanelToggle.textContent = state.panelCollapsed ? t("panelToggleShow") : t("panelToggleHide");
     }
   }
 
@@ -953,12 +1328,12 @@
       var photoHtml = row.photo_url
         ? "<br><img src='" + escapeHtml(row.photo_url) + "' alt='Photo du lieu' style='margin-top:6px;width:190px;max-width:100%;border-radius:8px;border:1px solid #d7e4e2'>"
         : "";
-      var html = "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
-        "<br>Catégorie: " + escapeHtml(row.category || "") +
-        "<br>Adresse: " + escapeHtml(row.address || "") +
-        "<br>Téléphone: " + escapeHtml(row.phone || "") +
+      var html = "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
+        "<br>" + t("labelCategory") + ": " + escapeHtml(row.category || "") +
+        "<br>" + t("labelAddress") + ": " + escapeHtml(row.address || "") +
+        "<br>" + t("labelPhone") + ": " + escapeHtml(row.phone || "") +
         photoHtml +
-        "<br><button data-route-btn type='button'>Itinéraire vers ce lieu</button>";
+        "<br><button data-route-btn type='button'>" + t("routeToPlace") + "</button>";
       marker.bindPopup(html);
       addPopupRouteHandler(marker, lat, lon);
     });
@@ -982,9 +1357,9 @@
       var lon = Number(row.longitude);
       var marker = L.marker([lat, lon], { icon: reportIcon(row.status) }).addTo(reportsLayer);
       marker.bindPopup(
-        "<strong>" + escapeHtml(row.title || "Signalement") + "</strong>" +
-        "<br>Type: " + escapeHtml(row.type || "") +
-        "<br>Statut: " + escapeHtml(row.status || "") +
+        "<strong>" + escapeHtml(row.title || t("tabReport")) + "</strong>" +
+        "<br>" + t("labelType") + ": " + escapeHtml(row.type || "") +
+        "<br>" + t("labelStatusFilter").replace("Filtrer ", "").replace("Filter ", "") + ": " + escapeHtml(row.status || "") +
         "<br>" + escapeHtml(row.description || "")
       );
     });
@@ -1008,7 +1383,7 @@
 
     map.setView(latlng, cfg.searchResultZoom || 18);
     marker.bindPopup(
-      "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
+      "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
       "<br>" + escapeHtml(row.category || "") +
       "<br>" + escapeHtml(row.address || "") +
       (row.photo_url
@@ -1035,7 +1410,7 @@
       points.push(latlng);
       L.marker(latlng, { icon: poiIcon() })
         .bindPopup(
-          "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
+          "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
           "<br>" + escapeHtml(row.category || "") +
           "<br>" + escapeHtml(row.address || "") +
           (row.photo_url
@@ -1057,17 +1432,17 @@
     dom.searchResults.innerHTML = "";
     if (!rows.length) {
       searchFocusLayer.clearLayers();
-      dom.searchResults.innerHTML = '<div class="result-item">Aucun résultat.</div>';
+      dom.searchResults.innerHTML = '<div class="result-item">' + escapeHtml(t("noResults")) + "</div>";
       return;
     }
     rows.forEach(function (row) {
       var item = document.createElement("div");
       item.className = "result-item";
       item.innerHTML =
-        "<strong>" + escapeHtml(row.name || "Lieu") + "</strong>" +
+        "<strong>" + escapeHtml(row.name || t("place")) + "</strong>" +
         "<br>" + escapeHtml(row.category || "") +
-        "<br><button type='button' data-action='zoom'>Voir sur la carte</button> " +
-        "<button type='button' data-action='route'>Itinéraire</button>";
+        "<br><button type='button' data-action='zoom'>" + t("viewOnMap") + "</button> " +
+        "<button type='button' data-action='route'>" + t("route") + "</button>";
       var zoomButton = item.querySelector("[data-action='zoom']");
       var routeButton = item.querySelector("[data-action='route']");
       zoomButton.addEventListener("click", function () {
@@ -1090,7 +1465,7 @@
     });
     renderSearchResults(rows);
     showSearchMarkers(rows);
-    setStatus(dom.searchStatus, rows.length + " résultat(s).", "success");
+    setStatus(dom.searchStatus, t("resultsCount", { count: rows.length }), "success");
   }
 
   function clearSearch() {
@@ -1230,7 +1605,7 @@
       if (!isFinite(Number(item.latitude)) || !isFinite(Number(item.longitude))) return;
       var row = {
         id: item.id,
-        name: item.name || "Lieu suggéré",
+        name: item.name || (state.lang === "en" ? "Suggested place" : "Lieu suggéré"),
         category: item.category || "",
         address: item.address || "",
         latitude: Number(item.latitude),
@@ -1242,8 +1617,8 @@
         "<div class='ai-suggestion-title'>" + escapeHtml(row.name) + "</div>" +
         "<div class='ai-suggestion-meta'>" + escapeHtml(row.category) + (row.address ? " | " + escapeHtml(row.address) : "") + "</div>" +
         "<div class='ai-suggestion-actions'>" +
-          "<button type='button' data-action='zoom'>Voir sur la carte</button>" +
-          "<button type='button' data-action='route'>Itinéraire</button>" +
+          "<button type='button' data-action='zoom'>" + t("viewOnMap") + "</button>" +
+          "<button type='button' data-action='route'>" + t("route") + "</button>" +
         "</div>";
       var zoomBtn = card.querySelector("[data-action='zoom']");
       var routeBtn = card.querySelector("[data-action='route']");
@@ -1267,15 +1642,15 @@
     if (!dom.aiMessageInput) return;
     var message = dom.aiMessageInput.value.trim();
     if (!message) {
-      setAiStatus("Saisis une question.", "error");
+      setAiStatus(t("askQuestion"), "error");
       return;
     }
     if (message.length > (cfg.aiPublicMaxQuestionLength || 500)) {
-      setAiStatus("Question trop longue.", "error");
+      setAiStatus(t("questionTooLong"), "error");
       return;
     }
 
-    setAiStatus("Analyse en cours...", null);
+    setAiStatus(t("assistantAsking"), null);
     var payload = {
       message: message,
       limit: cfg.aiPublicMaxSuggestions || 5,
@@ -1302,12 +1677,12 @@
       }
       state.aiLastResponse = data;
       renderAiResponse(data);
-      setAiStatus("Réponse générée.", "success");
+      setAiStatus(t("assistantAnswerReady"), "success");
     } catch (err) {
       var fallback = buildLocalAiFallback(message);
       state.aiLastResponse = fallback;
       renderAiResponse(fallback);
-      setAiStatus("IA distante indisponible. Résultats locaux affichés.", "error");
+      setAiStatus(t("assistantUnavailable"), "error");
     }
   }
 
@@ -1386,15 +1761,15 @@
   }
 
   function getLocationErrorMessage(err) {
-    if (!err) return "Impossible d'obtenir la position.";
-    if (err.code === 1) return "Autorise la localisation pour calculer l'itineraire.";
-    if (err.code === 2) return "Position indisponible. Verifie ton GPS.";
-    if (err.code === 3) return "Delai depasse pour obtenir la position.";
+    if (!err) return state.lang === "en" ? "Unable to get location." : "Impossible d'obtenir la position.";
+    if (err.code === 1) return state.lang === "en" ? "Allow location to calculate route." : "Autorise la localisation pour calculer l'itineraire.";
+    if (err.code === 2) return state.lang === "en" ? "Location unavailable. Check GPS." : "Position indisponible. Verifie ton GPS.";
+    if (err.code === 3) return state.lang === "en" ? "Location request timed out." : "Delai depasse pour obtenir la position.";
     var msg = String(err.message || "");
     if (msg.toLowerCase().indexOf("no geolocation") !== -1) {
-      return "La geolocalisation n'est pas disponible.";
+      return state.lang === "en" ? "Geolocation is not available." : "La geolocalisation n'est pas disponible.";
     }
-    return "Impossible d'obtenir la position.";
+    return state.lang === "en" ? "Unable to get location." : "Impossible d'obtenir la position.";
   }
 
   function getShareTtlMinutes() {
@@ -1430,7 +1805,7 @@
   }
 
   async function generateShareLink() {
-    setShareStatus("Préparation du lien de partage...", null);
+    setShareStatus(state.lang === "en" ? "Preparing share link..." : "Préparation du lien de partage...", null);
     ensureShareButtons(true);
     var latlng = null;
     if (isCurrentPositionFresh(cfg.currentPositionMaxAgeMs || 45000)) {
@@ -1444,14 +1819,14 @@
       });
     }
     if (!latlng) {
-      throw new Error("Position non disponible.");
+      throw new Error(state.lang === "en" ? "Location unavailable." : "Position non disponible.");
     }
     var data = await createLocationShare(latlng, state.currentAccuracy);
     var shareUrl = data && data.url
       ? String(data.url)
       : (window.location.origin + window.location.pathname + "?s=" + encodeURIComponent(String(data.token || "")));
     if (!shareUrl) {
-      throw new Error("Lien de partage introuvable.");
+      throw new Error(state.lang === "en" ? "Share link not found." : "Lien de partage introuvable.");
     }
     state.lastShareUrl = shareUrl;
     state.lastShareExpiresAt = data && data.expiresAt ? String(data.expiresAt) : null;
@@ -1466,18 +1841,20 @@
     try {
       var mode = await shareOrCopyLink(payload.url);
       var expireLabel = payload.expiresAt
-        ? " (expire à " + new Date(payload.expiresAt).toLocaleTimeString("fr-FR") + ")"
+        ? (state.lang === "en"
+          ? " (expires at " + new Date(payload.expiresAt).toLocaleTimeString("en-US") + ")"
+          : " (expire à " + new Date(payload.expiresAt).toLocaleTimeString("fr-FR") + ")")
         : "";
       if (mode === "shared") {
-        setShareStatus("Position partagée." + expireLabel, "success");
+        setShareStatus((state.lang === "en" ? "Location shared." : "Position partagée.") + expireLabel, "success");
       } else {
-        setShareStatus("Lien copié. Tu peux le coller dans WhatsApp/SMS." + expireLabel, "success");
-        showToast("Lien copié");
+        setShareStatus((state.lang === "en" ? "Link copied. You can paste it in WhatsApp/SMS." : "Lien copié. Tu peux le coller dans WhatsApp/SMS.") + expireLabel, "success");
+        showToast(state.lang === "en" ? "Link copied" : "Lien copié");
       }
       ensureShareButtons(true);
     } catch (err) {
       if (err && err.name === "AbortError") {
-        setShareStatus("Partage annulé.", null);
+        setShareStatus(state.lang === "en" ? "Share canceled." : "Partage annulé.", null);
         return;
       }
       throw err;
@@ -1495,12 +1872,12 @@
 
   async function showLastShareLink() {
     if (!state.lastShareUrl) {
-      setShareStatus("Aucun lien en mémoire. Clique d'abord sur Partager.", "error");
+      setShareStatus(state.lang === "en" ? "No link in memory. Click Share first." : "Aucun lien en mémoire. Clique d'abord sur Partager.", "error");
       return;
     }
     await copyTextToClipboard(state.lastShareUrl);
-    showToast("Lien copié");
-    setShareStatus("Lien copié.", "success");
+    showToast(state.lang === "en" ? "Link copied" : "Lien copié");
+    setShareStatus(state.lang === "en" ? "Link copied." : "Lien copié.", "success");
   }
 
   async function shareViaWhatsApp() {
@@ -1508,9 +1885,9 @@
     if (!shareUrl) {
       var payload = await generateShareLink();
       shareUrl = payload.url;
-      setShareStatus("Lien prêt pour WhatsApp.", "success");
+      setShareStatus(state.lang === "en" ? "Link ready for WhatsApp." : "Lien prêt pour WhatsApp.", "success");
     }
-    var message = "Voici ma position sur Camayenne Map: " + shareUrl;
+    var message = (state.lang === "en" ? "Here is my position on Camayenne Map: " : "Voici ma position sur Camayenne Map: ") + shareUrl;
     var waUrl = "https://wa.me/?text=" + encodeURIComponent(message);
     window.open(waUrl, "_blank", "noopener");
   }
@@ -1632,7 +2009,9 @@
 
   function setPickPoint(target, latlng) {
     if (!isInFocusArea(latlng)) {
-      var msg = "Point hors zone Camayenne. Reviens dans le rectangle.";
+      var msg = state.lang === "en"
+        ? "Point is outside Camayenne area. Please select inside the boundary."
+        : "Point hors zone Camayenne. Reviens dans le rectangle.";
       if (target === "poi") {
         setStatus(dom.poiStatus, msg, "error");
       } else {
@@ -1675,24 +2054,24 @@
 
   async function submitPoi() {
     if (cfg.allowPoiSubmission === false) {
-      setStatus(dom.poiStatus, "Ajout de lieux désactivé en mode public.", "error");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Adding places is disabled in public mode." : "Ajout de lieux désactivé en mode public.", "error");
       return;
     }
     if (!getSupabaseReady()) {
-      setStatus(dom.poiStatus, "Configure d'abord Supabase (config.js).", "error");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Configure Supabase first (config.js)." : "Configure d'abord Supabase (config.js).", "error");
       return;
     }
     if (!state.selectedPoiPoint) {
-      setStatus(dom.poiStatus, "Choisis un point sur la carte.", "error");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Choose a point on the map." : "Choisis un point sur la carte.", "error");
       return;
     }
     if (!isInFocusArea(state.selectedPoiPoint)) {
-      setStatus(dom.poiStatus, "Le point doit être dans la zone Camayenne.", "error");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Point must be inside Camayenne area." : "Le point doit être dans la zone Camayenne.", "error");
       return;
     }
     var name = dom.poiName.value.trim();
     if (!name) {
-      setStatus(dom.poiStatus, "Le nom est obligatoire.", "error");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Name is required." : "Le nom est obligatoire.", "error");
       return;
     }
     var table = cfg.tables && cfg.tables.poi ? cfg.tables.poi : "poi";
@@ -1715,30 +2094,30 @@
         },
         body: JSON.stringify(payload)
       });
-      setStatus(dom.poiStatus, "Lieu ajouté.", "success");
+      setStatus(dom.poiStatus, state.lang === "en" ? "Place added." : "Lieu ajouté.", "success");
       clearPoiForm();
       await loadPois();
     } catch (err) {
-      setStatus(dom.poiStatus, "Erreur: " + err.message, "error");
+      setStatus(dom.poiStatus, (state.lang === "en" ? "Error: " : "Erreur: ") + err.message, "error");
     }
   }
 
   async function submitReport() {
     if (!getSupabaseReady()) {
-      setStatus(dom.reportStatusMessage, "Configure d'abord Supabase (config.js).", "error");
+      setStatus(dom.reportStatusMessage, state.lang === "en" ? "Configure Supabase first (config.js)." : "Configure d'abord Supabase (config.js).", "error");
       return;
     }
     if (!state.selectedReportPoint) {
-      setStatus(dom.reportStatusMessage, "Choisis un point sur la carte.", "error");
+      setStatus(dom.reportStatusMessage, state.lang === "en" ? "Choose a point on the map." : "Choisis un point sur la carte.", "error");
       return;
     }
     if (!isInFocusArea(state.selectedReportPoint)) {
-      setStatus(dom.reportStatusMessage, "Le point doit être dans la zone Camayenne.", "error");
+      setStatus(dom.reportStatusMessage, state.lang === "en" ? "Point must be inside Camayenne area." : "Le point doit être dans la zone Camayenne.", "error");
       return;
     }
     var title = dom.reportTitle.value.trim();
     if (!title) {
-      setStatus(dom.reportStatusMessage, "Le titre est obligatoire.", "error");
+      setStatus(dom.reportStatusMessage, state.lang === "en" ? "Title is required." : "Le titre est obligatoire.", "error");
       return;
     }
     var payload = {
@@ -1763,11 +2142,11 @@
           body: JSON.stringify(payload)
         });
       }
-      setStatus(dom.reportStatusMessage, "Signalement envoyé.", "success");
+      setStatus(dom.reportStatusMessage, state.lang === "en" ? "Report submitted." : "Signalement envoyé.", "success");
       clearReportForm();
       await loadReports();
     } catch (err) {
-      setStatus(dom.reportStatusMessage, "Erreur: " + err.message, "error");
+      setStatus(dom.reportStatusMessage, (state.lang === "en" ? "Error: " : "Erreur: ") + err.message, "error");
     }
   }
 
@@ -2402,7 +2781,7 @@
     if (dom.btnAiAsk) {
       dom.btnAiAsk.addEventListener("click", function () {
         askPublicAssistant().catch(function (err) {
-          setAiStatus("Assistant indisponible: " + err.message, "error");
+          setAiStatus((state.lang === "en" ? "Assistant unavailable: " : "Assistant indisponible: ") + err.message, "error");
         });
       });
     }
@@ -2418,7 +2797,7 @@
         if (evt.key === "Enter" && !evt.shiftKey) {
           evt.preventDefault();
           askPublicAssistant().catch(function (err) {
-            setAiStatus("Assistant indisponible: " + err.message, "error");
+            setAiStatus((state.lang === "en" ? "Assistant unavailable: " : "Assistant indisponible: ") + err.message, "error");
           });
         }
       });
@@ -2429,7 +2808,7 @@
           if (!dom.aiMessageInput) return;
           dom.aiMessageInput.value = btn.dataset.aiPrompt || "";
           askPublicAssistant().catch(function (err) {
-            setAiStatus("Assistant indisponible: " + err.message, "error");
+            setAiStatus((state.lang === "en" ? "Assistant unavailable: " : "Assistant indisponible: ") + err.message, "error");
           });
         });
       });
@@ -2441,7 +2820,7 @@
         showCachedFirst: true,
         openPopup: true
       }).catch(function () {
-        setRouteStatus("Impossible d'obtenir la position.", "error");
+        setRouteStatus(getLocationErrorMessage(), "error");
       });
       if (isMobileLayout()) {
         setPanelCollapsed(true);
@@ -2512,7 +2891,7 @@
 
     dom.btnPickPoiPoint.addEventListener("click", function () {
       state.pickMode = "poi";
-      dom.hintText.textContent = "Mode ajout lieu: clique un point sur la carte.";
+      dom.hintText.textContent = t("hintPickPoi");
       if (isMobileLayout()) {
         setPanelCollapsed(true);
       }
@@ -2524,7 +2903,7 @@
 
     dom.btnPickReportPoint.addEventListener("click", function () {
       state.pickMode = "report";
-      dom.hintText.textContent = "Mode signalement: clique un point sur la carte.";
+      dom.hintText.textContent = t("hintPickReport");
       if (isMobileLayout()) {
         setPanelCollapsed(true);
       }
@@ -2550,11 +2929,24 @@
       if (!state.pickMode) return;
       if (!setPickPoint(state.pickMode, evt.latlng)) return;
       state.pickMode = null;
-      dom.hintText.textContent = "Point enregistré. Clique sur un marqueur pour voir les détails et lancer un itinéraire.";
+      dom.hintText.textContent = t("hintPointSaved");
     });
+
+    if (dom.langSelect) {
+      dom.langSelect.addEventListener("change", function () {
+        setLanguage(dom.langSelect.value, true);
+      });
+      dom.langSelect.addEventListener("input", function () {
+        setLanguage(dom.langSelect.value, true);
+      });
+    }
   }
 
   async function bootstrap() {
+    setLanguage(getInitialLang(), false);
+    window.__setPublicLang = function (lang) {
+      setLanguage(lang, true);
+    };
     fillSelect(dom.searchCategory, poiCategories, true);
     fillSelect(dom.poiCategory, poiCategories, false);
     fillSelect(dom.reportType, reportTypes, false);
@@ -2574,9 +2966,7 @@
     updateNavigationButtons();
     setCompassVisible(false);
     syncPanelWithViewport(true);
-    if (dom.aiStatus) {
-      setAiStatus("Assistant prêt.", null);
-    }
+    if (dom.aiStatus) setAiStatus(t("assistantReady"), null);
     clearAiResponse();
 
     wireEvents();
@@ -2585,16 +2975,18 @@
     }
 
     if (!getSupabaseReady()) {
-      setStatus(dom.searchStatus, "Mode démo: renseigne config.js pour connecter la base.", "error");
+      setStatus(dom.searchStatus, t("demoMode"), "error");
       return;
     }
 
     try {
       await Promise.all([loadPois(), loadReports()]);
-      setStatus(dom.searchStatus, "Données chargées.", "success");
+      setStatus(dom.searchStatus, t("dataLoaded"), "success");
     } catch (err) {
-      setStatus(dom.searchStatus, "Erreur chargement: " + err.message, "error");
+      setStatus(dom.searchStatus, t("dataLoadError", { error: err.message }), "error");
     }
+
+    applyPublicLanguage();
 
     await openSharedLocationFromUrl();
   }

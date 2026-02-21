@@ -65,6 +65,28 @@ body {
   font-weight: 800;
 }
 
+.panel-lang {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.panel-lang label {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.panel-lang select {
+  width: 84px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+}
+
 .panel-header p {
   margin: 6px 0 0;
   color: var(--muted);
