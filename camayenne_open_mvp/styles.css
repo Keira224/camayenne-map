@@ -330,6 +330,34 @@ hr {
   margin-top: 8px;
 }
 
+.nav-arrival-actions {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.nav-arrival-actions .btn {
+  font-size: 0.82rem;
+  padding: 9px 8px;
+}
+
+.route-target-flash {
+  animation: routeTargetBlink 0.24s ease-in-out 8;
+}
+
+@keyframes routeTargetBlink {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 0.58;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .advanced-options {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -591,6 +619,10 @@ hr {
   .quick-actions,
   .row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .nav-arrival-actions {
+    grid-template-columns: 1fr;
   }
 
   #btnFocusArea {

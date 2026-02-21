@@ -91,12 +91,18 @@
     aiLastResponse: null,
     nav: {
       active: false,
+      phase: "EN_ROUTE",
       watchId: null,
       rerouteInFlight: false,
       lastRerouteAt: 0,
+      startedAt: null,
+      arrivedAt: null,
+      arrivalConsecutive: 0,
+      arrivalRecord: null,
       currentHeading: null,
       previousTrackPoint: null,
       destination: null,
+      destinationMeta: null,
       routeLatLngs: [],
       segmentLengths: [],
       totalDistance: null,
@@ -163,6 +169,10 @@
     btnStopNav: document.getElementById("btnStopNav"),
     navStatus: document.getElementById("navStatus"),
     navProgress: document.getElementById("navProgress"),
+    navArrivalActions: document.getElementById("navArrivalActions"),
+    btnNavFinish: document.getElementById("btnNavFinish"),
+    btnNavRestart: document.getElementById("btnNavRestart"),
+    btnNavDetails: document.getElementById("btnNavDetails"),
     compassWidget: document.getElementById("compassWidget"),
     compassNeedle: document.getElementById("compassNeedle"),
     compassLabel: document.getElementById("compassLabel"),
@@ -247,6 +257,9 @@
       btnCalcRoute: "Calculer itinéraire",
       btnStartNav: "Démarrer guidage",
       btnStopNav: "Arrêter guidage",
+      btnNavFinish: "Terminer",
+      btnNavRestart: "Relancer guidage",
+      btnNavDetails: "Voir détails lieu",
       poiNamePh: "Nom du lieu",
       poiAddressPh: "Adresse ou repère",
       poiPhonePh: "+224 ...",
@@ -339,6 +352,9 @@
       btnCalcRoute: "Calculate route",
       btnStartNav: "Start guidance",
       btnStopNav: "Stop guidance",
+      btnNavFinish: "Finish",
+      btnNavRestart: "Restart guidance",
+      btnNavDetails: "View place details",
       poiNamePh: "Place name",
       poiAddressPh: "Address or landmark",
       poiPhonePh: "+224 ...",
@@ -466,6 +482,9 @@
     setText(dom.btnRouteBetween, t("btnCalcRoute"));
     setText(dom.btnStartNav, t("btnStartNav"));
     setText(dom.btnStopNav, t("btnStopNav"));
+    setText(dom.btnNavFinish, t("btnNavFinish"));
+    setText(dom.btnNavRestart, t("btnNavRestart"));
+    setText(dom.btnNavDetails, t("btnNavDetails"));
 
     setLabel("poiName", t("labelName"));
     setLabel("poiCategory", t("labelCategory"));
@@ -639,6 +658,67 @@
 
   function setNavProgress(message, level) {
     setStatus(dom.navProgress, message, level);
+  }
+
+  function setArrivalActionsVisible(visible) {
+    if (!dom.navArrivalActions) return;
+    dom.navArrivalActions.hidden = !visible;
+  }
+
+  function setNavPhase(phase) {
+    state.nav.phase = phase || "EN_ROUTE";
+  }
+
+  function flashRouteTargetMarker() {
+    var layers = routeTargetLayer.getLayers();
+    if (!layers || !layers.length) return;
+    var marker = layers[0];
+    var el = marker.getElement && marker.getElement();
+    if (!el) {
+      setTimeout(function () {
+        var delayed = marker.getElement && marker.getElement();
+        if (!delayed) return;
+        delayed.classList.add("route-target-flash");
+        setTimeout(function () {
+          delayed.classList.remove("route-target-flash");
+        }, 2000);
+      }, 60);
+      return;
+    }
+    el.classList.add("route-target-flash");
+    setTimeout(function () {
+      el.classList.remove("route-target-flash");
+    }, 2000);
+  }
+
+  function saveArrivalLocally(record) {
+    try {
+      var key = "camayenne_nav_arrivals_v1";
+      var raw = localStorage.getItem(key);
+      var list = [];
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) list = parsed;
+      }
+      list.unshift(record);
+      if (list.length > 30) list = list.slice(0, 30);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (_) {
+      // ignore localStorage errors
+    }
+  }
+
+  function openDestinationDetails() {
+    var layers = routeTargetLayer.getLayers();
+    if (!layers || !layers.length) {
+      setNavStatus(state.lang === "en" ? "No destination marker available." : "Aucun marqueur de destination disponible.", "error");
+      return;
+    }
+    var marker = layers[0];
+    if (marker.getLatLng) {
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 18));
+    }
+    if (marker.openPopup) marker.openPopup();
   }
 
   function setCoord(node, latlng) {
@@ -1322,6 +1402,7 @@
   function drawRouteTargetMarker(targetLatLng, meta) {
     routeTargetLayer.clearLayers();
     if (!targetLatLng) return;
+    state.nav.destinationMeta = meta || null;
 
     var marker = L.marker(targetLatLng, { icon: destinationIcon() }).addTo(routeTargetLayer);
     var photoUrl = getPoiPhotoUrl(meta || {});
@@ -1950,7 +2031,7 @@
         roundTrip: false
       });
       drawRouteTargetMarker(targetLatLng, null);
-      onRouteReady(routeResult, targetLatLng, "Itineraire calcule vers la position partagee.");
+      onRouteReady(routeResult, targetLatLng, "Itineraire calcule vers la position partagee.", null);
       setShareStatus("Itineraire pret.", "success");
     } catch (err) {
       setRouteStatus("Itineraire impossible: " + err.message, "error");
@@ -2335,8 +2416,13 @@
 
   function setRouteContext(routeResult, destinationLatLng, options) {
     var opts = options || {};
+    var previousMeta = state.routeContext && state.routeContext.targetMeta ? state.routeContext.targetMeta : null;
+    var targetMeta = typeof opts.targetMeta === "undefined" ? previousMeta : (opts.targetMeta || null);
     if (!routeResult || !routeResult.latlngs || routeResult.latlngs.length < 2 || !destinationLatLng) {
       state.routeContext = null;
+      state.nav.destinationMeta = null;
+      setNavPhase("EN_ROUTE");
+      setArrivalActionsVisible(false);
       updateNavigationButtons();
       if (!state.nav.active) {
         setNavStatus("", null);
@@ -2359,6 +2445,7 @@
       totalDuration: routeResult.summary && routeResult.summary.duration
         ? routeResult.summary.duration
         : null,
+      targetMeta: targetMeta,
       profile: routeResult.profile,
       preference: routeResult.preference,
       avoidMainRoads: !!routeResult.avoidMainRoads,
@@ -2372,11 +2459,16 @@
       setNavStatus("Itinéraire prêt. Clique sur 'Démarrer guidage'.", "success");
       setNavProgress("", null);
     }
+    setNavPhase("EN_ROUTE");
+    setArrivalActionsVisible(false);
     updateNavigationButtons();
   }
 
   function clearRouteContext() {
     state.routeContext = null;
+    state.nav.destinationMeta = null;
+    setNavPhase("EN_ROUTE");
+    setArrivalActionsVisible(false);
     updateNavigationButtons();
     if (!state.nav.active) {
       setNavStatus("", null);
@@ -2384,14 +2476,19 @@
     }
   }
 
-  function stopNavigation(showMessage) {
+  function stopNavigation(showMessage, keepArrivalActions) {
     if (state.nav.watchId !== null && navigator.geolocation) {
       navigator.geolocation.clearWatch(state.nav.watchId);
     }
     state.nav.active = false;
+    state.nav.phase = keepArrivalActions ? "ARRIVE" : "EN_ROUTE";
     state.nav.watchId = null;
     state.nav.rerouteInFlight = false;
     state.nav.lastRerouteAt = 0;
+    state.nav.startedAt = null;
+    if (!keepArrivalActions) state.nav.arrivedAt = null;
+    state.nav.arrivalConsecutive = 0;
+    if (!keepArrivalActions) state.nav.arrivalRecord = null;
     state.nav.currentHeading = null;
     state.nav.previousTrackPoint = null;
     state.nav.destination = null;
@@ -2399,10 +2496,14 @@
     state.nav.segmentLengths = [];
     state.nav.totalDistance = null;
     state.nav.totalDuration = null;
+    if (!keepArrivalActions) state.nav.destinationMeta = null;
     state.nav.profile = null;
     state.nav.preference = null;
     state.nav.avoidMainRoads = false;
     state.nav.roundTrip = false;
+    if (!keepArrivalActions) {
+      setArrivalActionsVisible(false);
+    }
     updateNavigationButtons();
     if (showMessage !== false) {
       setNavStatus("Guidage arrêté.", null);
@@ -2421,6 +2522,7 @@
     state.nav.segmentLengths = state.routeContext.segmentLengths.slice();
     state.nav.totalDistance = state.routeContext.totalDistance;
     state.nav.totalDuration = state.routeContext.totalDuration;
+    state.nav.destinationMeta = state.routeContext.targetMeta || null;
     state.nav.profile = state.routeContext.profile;
     state.nav.preference = state.routeContext.preference;
     state.nav.avoidMainRoads = state.routeContext.avoidMainRoads;
@@ -2459,6 +2561,40 @@
     }
   }
 
+  function handleNavigationArrival(progress, accuracy) {
+    var nowIso = new Date().toISOString();
+    var plannedDistance = state.routeContext && state.routeContext.totalDistance ? state.routeContext.totalDistance : state.nav.totalDistance;
+    var plannedDuration = state.routeContext && state.routeContext.totalDuration ? state.routeContext.totalDuration : state.nav.totalDuration;
+    var elapsedSeconds = state.nav.startedAt ? Math.max(0, Math.round((Date.now() - state.nav.startedAt) / 1000)) : null;
+    var record = {
+      arrived_at: nowIso,
+      destination_name: (state.routeContext && state.routeContext.targetMeta && state.routeContext.targetMeta.name) || null,
+      destination_category: (state.routeContext && state.routeContext.targetMeta && state.routeContext.targetMeta.category) || null,
+      destination_lat: state.routeContext && state.routeContext.destination ? Number(state.routeContext.destination.lat) : null,
+      destination_lon: state.routeContext && state.routeContext.destination ? Number(state.routeContext.destination.lng) : null,
+      planned_distance_m: plannedDistance != null ? Math.round(plannedDistance) : null,
+      planned_duration_s: plannedDuration != null ? Math.round(plannedDuration) : null,
+      elapsed_duration_s: elapsedSeconds,
+      remaining_distance_m: progress && progress.remainingDistance != null ? Math.round(progress.remainingDistance) : null,
+      arrival_accuracy_m: accuracy != null ? Math.round(accuracy) : null
+    };
+
+    saveArrivalLocally(record);
+    stopNavigation(false, true);
+    state.nav.arrivedAt = nowIso;
+    state.nav.arrivalRecord = record;
+    setNavPhase("ARRIVE");
+    setNavStatus(state.lang === "en" ? "Destination reached." : "Destination atteinte.", "success");
+    setNavProgress(
+      (state.lang === "en" ? "Arrival time: " : "Heure d'arrivée: ") + new Date(nowIso).toLocaleTimeString(state.lang === "en" ? "en-US" : "fr-FR") +
+      " | " + (state.lang === "en" ? "Distance" : "Distance") + ": " + (plannedDistance != null ? formatDistance(plannedDistance) : "-") +
+      " | " + (state.lang === "en" ? "Duration" : "Durée") + ": " + (elapsedSeconds != null ? formatDuration(elapsedSeconds) : "-"),
+      "success"
+    );
+    setArrivalActionsVisible(true);
+    flashRouteTargetMarker();
+  }
+
   function updateNavigationProgress(latlng, accuracy) {
     if (!state.nav.active || !state.nav.routeLatLngs || state.nav.routeLatLngs.length < 2) return;
     var progress = computeRouteProgress(latlng, state.nav.routeLatLngs, state.nav.segmentLengths);
@@ -2466,6 +2602,9 @@
 
     var offRouteThreshold = cfg.navOffRouteThresholdMeters || 45;
     var arrivalDistance = cfg.navArrivalDistanceMeters || 20;
+    var nearDistance = cfg.navNearDistanceMeters || 80;
+    var arrivalMaxAccuracy = cfg.navArrivalMaxAccuracyMeters || 35;
+    var arrivalConfirmReads = cfg.navArrivalConfirmReads || 2;
     var remainingDuration = null;
     if (state.nav.totalDuration && state.nav.totalDistance && state.nav.totalDistance > 0) {
       remainingDuration = state.nav.totalDuration * (progress.remainingDistance / state.nav.totalDistance);
@@ -2485,10 +2624,53 @@
     setNavProgress(info, quality);
 
     if (progress.remainingDistance <= arrivalDistance) {
-      setNavStatus("Destination atteinte.", "success");
-      stopNavigation(false);
+      var accurateForArrival = accuracy != null && accuracy <= arrivalMaxAccuracy;
+      if (!accurateForArrival) {
+        state.nav.arrivalConsecutive = 0;
+        setNavPhase("PROCHE");
+        var gpsText = accuracy != null
+          ? ("±" + Math.round(accuracy) + " m")
+          : (state.lang === "en" ? "unknown" : "indisponible");
+        setNavStatus(
+          (state.lang === "en"
+            ? "Near destination, but GPS is weak ("
+            : "Proche de la destination, mais GPS faible (") +
+          gpsText +
+          (state.lang === "en" ? "). Keep moving a little for confirmation." : "). Avance encore un peu pour confirmer l'arrivée."),
+          "error"
+        );
+        return;
+      }
+
+      state.nav.arrivalConsecutive += 1;
+      if (state.nav.arrivalConsecutive < arrivalConfirmReads) {
+        setNavPhase("PROCHE");
+        setNavStatus(
+          (state.lang === "en" ? "Confirming arrival..." : "Confirmation d'arrivée...") +
+          " (" + state.nav.arrivalConsecutive + "/" + arrivalConfirmReads + ")",
+          "success"
+        );
+        return;
+      }
+
+      handleNavigationArrival(progress, accuracy);
       return;
     }
+
+    state.nav.arrivalConsecutive = 0;
+
+    if (progress.remainingDistance <= nearDistance) {
+      setNavPhase("PROCHE");
+      setNavStatus(
+        state.lang === "en"
+          ? "You are almost there."
+          : "Vous êtes presque arrivé.",
+        "success"
+      );
+      return;
+    }
+
+    setNavPhase("EN_ROUTE");
 
     if (progress.distanceToRoute > offRouteThreshold) {
       rerouteNavigation("hors trajectoire");
@@ -2543,6 +2725,12 @@
 
     stopNavigation(false);
     state.nav.active = true;
+    state.nav.startedAt = Date.now();
+    state.nav.arrivedAt = null;
+    state.nav.arrivalConsecutive = 0;
+    state.nav.arrivalRecord = null;
+    setNavPhase("EN_ROUTE");
+    setArrivalActionsVisible(false);
     syncNavFromRouteContext();
     state.nav.previousTrackPoint = state.currentPosition || null;
     updateNavigationButtons();
@@ -2576,11 +2764,11 @@
     });
   }
 
-  function onRouteReady(routeResult, destinationLatLng, message) {
+  function onRouteReady(routeResult, destinationLatLng, message, targetMeta) {
     if (!routeResult) return;
     setRouteStatus(message, "success");
     setRouteMetrics(routeResult.summary, routeResult.profile, routeResult.preference, routeResult.roundTrip);
-    setRouteContext(routeResult, destinationLatLng);
+    setRouteContext(routeResult, destinationLatLng, { targetMeta: targetMeta || null });
     if (isMobileLayout()) {
       setPanelCollapsed(true);
     }
@@ -2691,7 +2879,7 @@
         roundTrip: isRoundTripEnabled()
       });
       drawRouteTargetMarker(targetLatLng, targetMeta || null);
-      onRouteReady(routeResult, targetLatLng, "Itinéraire calculé.");
+      onRouteReady(routeResult, targetLatLng, "Itinéraire calculé.", targetMeta || null);
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
       clearRouteContext();
@@ -2755,7 +2943,7 @@
         roundTrip: isRoundTripEnabled()
       });
       drawRouteTargetMarker(toPoint, toValue === "__CURRENT__" ? null : getPoiById(toValue));
-      onRouteReady(routeResult, toPoint, "Itinéraire calculé entre deux points.");
+      onRouteReady(routeResult, toPoint, "Itinéraire calculé entre deux points.", toValue === "__CURRENT__" ? null : getPoiById(toValue));
     } catch (err) {
       setRouteStatus("Itinéraire impossible: " + err.message, "error");
       clearRouteContext();
@@ -2935,6 +3123,25 @@
     if (dom.btnStopNav) {
       dom.btnStopNav.addEventListener("click", function () {
         stopNavigation(true);
+      });
+    }
+    if (dom.btnNavFinish) {
+      dom.btnNavFinish.addEventListener("click", function () {
+        setArrivalActionsVisible(false);
+        setNavStatus(state.lang === "en" ? "Navigation finished." : "Navigation terminée.", "success");
+      });
+    }
+    if (dom.btnNavRestart) {
+      dom.btnNavRestart.addEventListener("click", function () {
+        setArrivalActionsVisible(false);
+        startNavigation().catch(function (err) {
+          setNavStatus((state.lang === "en" ? "Guidance failed: " : "Guidage impossible: ") + err.message, "error");
+        });
+      });
+    }
+    if (dom.btnNavDetails) {
+      dom.btnNavDetails.addEventListener("click", function () {
+        openDestinationDetails();
       });
     }
 
